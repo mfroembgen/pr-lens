@@ -360,6 +360,11 @@ const call = async <T>(
 
 const canvasPath = (id: string): string => `/api/canvas/${id}`;
 
+export const isOpenCanvasServer = (api: string): Promise<boolean> =>
+  call(api, { method: "GET", path: "/api/access", canvas: undefined, token: undefined },
+    z.object({ auth: z.string(), publisherRequired: z.boolean() }))
+    .then((access) => access.auth === "none" && !access.publisherRequired, () => false);
+
 /** The bearer is how CI attributes a mint: a runner's install id is never linked. */
 export const mintCanvas = (
   api: string,
@@ -398,7 +403,7 @@ export const fetchCanvas = async (
 export const pushCanvas = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
   rev: number,
   document: GraphDoc,
 ): Promise<Pushed> =>
@@ -434,7 +439,7 @@ export const verifyWriteToken = (
 export const rotateCanvas = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
   nextToken: string,
 ): Promise<Rotated> =>
   call(
@@ -452,7 +457,7 @@ export const rotateCanvas = (
 export const deleteCanvas = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
 ): Promise<{ id: string; deleted: true }> =>
   call(
     api,
@@ -484,7 +489,7 @@ export type OwnedCanvas = z.infer<typeof Owned>;
  */
 export const listOwnedCanvases = (
   api: string,
-  token: string,
+  token: string | undefined,
 ): Promise<OwnedCanvas[]> =>
   call(
     api,
@@ -556,7 +561,7 @@ export const openLive = (
 export const sendLive = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
   session: string,
   command: LiveCommand,
 ): Promise<z.infer<typeof LiveSent>> =>
@@ -569,7 +574,7 @@ export const sendLive = (
 export const readLook = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
   session: string,
 ): Promise<LookRead> =>
   call(

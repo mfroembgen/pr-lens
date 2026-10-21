@@ -18,14 +18,16 @@ let directory = "";
 let port = 0;
 let child: ChildProcess | undefined;
 
-const start = async () => {
+const start = async (authMode?: "none") => {
   const environment = { ...process.env };
   delete environment.GITLAB_ORIGIN;
   delete environment.ACCOUNT_TOKEN;
+  delete environment.AUTH_MODE;
+  delete environment.PUBLISH_TOKEN;
   child = spawn("bun", ["dist/bin.js"], {
     cwd: process.cwd(),
     env: { ...environment, HOST: "127.0.0.1", PORT: String(port), PUBLIC_ORIGIN: origin,
-      DATABASE_PATH: join(directory, "canvas.sqlite"), PUBLISH_TOKEN: publishing },
+      DATABASE_PATH: join(directory, "canvas.sqlite"), ...(authMode === "none" ? { AUTH_MODE: "none" } : { PUBLISH_TOKEN: publishing }) },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let diagnostic = "";
@@ -165,4 +167,67 @@ test("device approval requires comparing the terminal code", async ({ page }) =>
   await page.getByRole("button", { name: "Approve machine", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Machine approved");
   expect(approved).toBe(true);
+});
+
+
+test("trusted network mode supports anonymous publishing, questions and paired live controls", async ({ page, request }) => {
+  await stop();
+  await start("none");
+  try {
+    expect(await (await request.get(`${origin}/api/access`)).json()).toMatchObject({ auth: "none", publisherRequired: false, accounts: false });
+    const minted = await request.post(`${origin}/api/canvas`, { data: {} });
+    expect(minted.status()).toBe(201);
+    const canvas = z.object({ id: z.string() }).parse(await minted.json());
+    const graph = GraphDoc.parse({ ...payloadExample, title: "Trusted network canvas", provenance: { ...payloadExample.provenance, base: { sha: baseCommit }, head: { sha: headCommit } } });
+    expect((await request.put(`${origin}/api/canvas/${canvas.id}`, { headers: { "if-match": "0" }, data: graph })).status()).toBe(200);
+    expect((await request.put(`${origin}/api/canvas/${canvas.id}/diff`, { data: diff() })).status()).toBe(200);
+    const identityRequests: string[] = [];
+    page.on("request", (sent) => { if (new URL(sent.url()).pathname === "/api/auth/me") identityRequests.push(sent.url()); });
+    await page.goto(`${origin}/c/${canvas.id}?rev=1`);
+    await expect(page.locator(".title strong")).toHaveText(graph.title);
+    await expect(page.getByLabel("GitLab access token")).toHaveCount(0);
+    await page.getByRole("button", { name: "Source diff", exact: true }).click();
+    await expect(page.locator(".diff-code")).toContainText("+return true;");
+    await page.getByRole("button", { name: "Questions", exact: true }).click();
+    const question = "Can this canvas answer anonymously?";
+    await page.getByLabel("Question about this canvas").fill(question);
+    await page.getByRole("button", { name: "Ask", exact: true }).click();
+    await expect(page.getByText("Waiting for your agent", { exact: true })).toBeVisible();
+    const lease = await request.post(`${origin}/api/canvas/${canvas.id}/questions/lease`, { data: {} });
+    expect(lease.status()).toBe(200);
+    const job = z.object({ question: z.object({ id: z.string(), lease: z.string() }) }).parse(await lease.json()).question;
+    const result = { kind: "answer", question, steps: [{ heading: "The canvas answers", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The local agent can answer without account credentials." }] }] }] };
+    expect((await request.post(`${origin}/api/canvas/${canvas.id}/questions/${job.id}/ack`, { data: { lease: job.lease, result } })).status()).toBe(200);
+    await page.getByRole("button", { name: "Open answer" }).click();
+    await expect(page.getByText("The canvas answers", { exact: true })).toBeVisible();
+    await page.reload();
+    await page.getByRole("button", { name: "Questions", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Open answer" })).toBeVisible();
+
+    const paired = await request.post(`${origin}/api/canvas/${canvas.id}/live`, { data: {} });
+    expect(paired.status()).toBe(200);
+    const live = z.object({ session: z.string(), url: z.string() }).parse(await paired.json());
+    expect(new URL(live.url).hash).toMatch(/^#live=[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{22}$/);
+    await page.goto(live.url);
+    await expect(page.getByText("● Following agent", { exact: true })).toBeVisible();
+    const message = graph.flows.flatMap((flow) => flow.messages.map((item) => ({ flow: flow.id, message: item }))).find((item) => item.message.payload?.request !== undefined);
+    if (!message) throw new Error("Payload fixture has no request");
+    const sent = await request.post(`${origin}/api/canvas/${canvas.id}/live/${live.session}`, { data: { kind: "show", focus: { kind: "all" }, open: { message: `${message.flow}/${message.message.id}` } } });
+    expect(sent.status()).toBe(200);
+    await expect(page.locator(".payload h3")).toHaveText(message.message.label);
+    await page.getByRole("button", { name: "Fit", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Follow agent", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Follow agent", exact: true }).click();
+    await expect(page.getByText("● Following agent", { exact: true })).toBeVisible();
+
+    for (const path of ["/device", "/settings"]) {
+      await page.goto(`${origin}${path}`);
+      await expect(page.getByRole("heading", { name: "Account sign-in is disabled", exact: true })).toBeVisible();
+      await expect(page.getByLabel("GitLab access token")).toHaveCount(0);
+    }
+    expect(identityRequests).toEqual([]);
+  } finally {
+    await stop();
+    await start();
+  }
 });

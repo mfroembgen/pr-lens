@@ -84,7 +84,7 @@ describe("local agent boundary", () => {
 });
 
 
-test("resends a journaled answer after restart without running the local agent twice", async () => {
+for (const authMode of ["protected", "none"] as const) test(`resends a journaled answer in ${authMode} mode without running the local agent twice`, async () => {
   const dir = await temporary();
   const repository = join(dir, "repo"); await mkdir(repository);
   const git = async (...args: string[]) => (await runCommand(["git", ...args], repository, null, 10_000)).trim();
@@ -95,14 +95,15 @@ test("resends a journaled answer after restart without running the local agent t
   const script = join(dir, "agent.cjs");
   const count = join(dir, "runs.txt");
   await writeFile(script, 'const fs=require("node:fs");let text="";process.stdin.on("data",c=>text+=c);process.stdin.on("end",()=>{fs.appendFileSync(process.argv[2],"run\\n");process.stdout.write(JSON.stringify('+JSON.stringify(answer)+'));});');
-  const config = Config.parse({ server: "https://canvas.example.com", canvasId: "a".repeat(22), repository, repositoryOrigin: "https://example.com/repo.git", command: [process.execPath, script, count], stateFile: join(dir, "state.json") });
+  const config = Config.parse({ authMode, server: "https://canvas.example.com", canvasId: "a".repeat(22), repository, repositoryOrigin: "https://example.com/repo.git", command: [process.execPath, script, count], stateFile: join(dir, "state.json") });
   const document: unknown = JSON.parse(await readFile(new URL("../../schema/examples/minimal.graph.json", import.meta.url), "utf8"));
   let stop = new AbortController();
   let acknowledge = false;
   const requests: string[] = [];
   const mocked = spyOn(globalThis, "fetch").mockImplementation(Object.assign(async (input: Parameters<typeof fetch>[0], options?: Parameters<typeof fetch>[1]) => {
     const url = String(input); requests.push(url);
-    expect(new Headers(options?.headers).get("authorization")).toBe(`Bearer ${"t".repeat(22)}`);
+    expect(new Headers(options?.headers).get("authorization")).toBe(authMode === "none" ? null : `Bearer ${"t".repeat(22)}`);
+    expect(new Headers(options?.headers).get("x-pr-lens-gitlab-token")).toBeNull();
     if (url.endsWith("/questions/lease")) return Response.json({ question: { id: "q".repeat(22), question: answer.question, lease: "l".repeat(22), expiresAt: new Date(Date.now()+120_000).toISOString(), headCommit: head, document, rev: 1 } });
     if (url.includes("/diff?rev=")) return Response.json({ baseCommit: "1".repeat(40), headCommit: head, unifiedDiff: "" });
     if (url.endsWith("/ack")) {
@@ -114,10 +115,10 @@ test("resends a journaled answer after restart without running the local agent t
     throw new Error("Unexpected request");
   }, { preconnect: globalThis.fetch.preconnect }));
   try {
-    await bridge(config, "t".repeat(22), undefined, stop.signal);
+    await bridge(config, authMode === "none" ? "ignored-stale-token" : "t".repeat(22), authMode === "none" ? "ignored-member-token" : undefined, stop.signal);
     expect(JSON.parse(await readFile(config.stateFile, "utf8")).answers["q".repeat(22)].result.kind).toBe("answer");
     stop = new AbortController(); acknowledge = true;
-    await bridge(config, "t".repeat(22), undefined, stop.signal);
+    await bridge(config, authMode === "none" ? undefined : "t".repeat(22), undefined, stop.signal);
     expect(await readFile(count, "utf8")).toBe("run\n");
     expect(requests.filter((url) => url.endsWith("/ack"))).toHaveLength(2);
   } finally { mocked.mockRestore(); }

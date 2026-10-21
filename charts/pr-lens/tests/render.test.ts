@@ -22,7 +22,7 @@ test("keeps SQLite on a retained claim with one restricted writer", () => {
   expect(pod.securityContext.runAsUser).toBe(1000);
   expect(container.securityContext.readOnlyRootFilesystem).toBe(true);
   expect(container.securityContext.allowPrivilegeEscalation).toBe(false);
-  expect(container.image).toBe("ghcr.io/mfroembgen/pr-lens:v0.1.4");
+  expect(container.image).toBe("ghcr.io/mfroembgen/pr-lens:v0.1.5");
   expect(container.env.find((value) => value.name === "DATABASE_PATH").value).toBe("/data/pr-lens.sqlite");
   expect(container.env.find((value) => value.name === "PUBLISH_TOKEN").valueFrom.secretKeyRef.name).toBe("pr-lens");
   expect(pod.volumes.find((value) => value.name === "data").persistentVolumeClaim.claimName).toBe(pvc.metadata.name);
@@ -30,6 +30,19 @@ test("keeps SQLite on a retained claim with one restricted writer", () => {
   const service = resources.find((value) => value.kind === "Service");
   expect(service.spec.selector).toEqual(deployment.spec.selector.matchLabels);
   expect(deployment.spec.template.metadata.labels).toMatchObject(service.spec.selector);
+});
+
+test("trusted-network mode needs no publishing or GitLab credentials", () => {
+  const resources = render("authMode=none", "existingSecret=", "gitlabOrigin=https://gitlab.example.com");
+  const env = resources.find((value) => value.kind === "Deployment").spec.template.spec.containers[0].env;
+  expect(env.find((value) => value.name === "AUTH_MODE").value).toBe("none");
+  expect(env.some((value) => ["PUBLISH_TOKEN", "GITLAB_ORIGIN"].includes(value.name))).toBe(false);
+});
+
+test("rejects misspelled access modes instead of opening the server", () => {
+  const result = spawnSync("helm", ["template", "test", chart, "--set", "authMode=non"], { encoding: "utf8" });
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("authMode must be protected or none");
 });
 
 test("uses an existing claim without managing its lifecycle", () => {

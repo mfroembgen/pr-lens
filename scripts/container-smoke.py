@@ -21,10 +21,11 @@ def docker(*args, payload=None):
     ).stdout.strip()
 
 
-def start():
+def start(mode="protected"):
+    auth = ["--env", "PUBLISH_TOKEN"] if mode == "protected" else []
     docker("run", "--detach", "--name", name, "--read-only", "--tmpfs", "/tmp",
            "--mount", f"type=volume,source={volume},target=/data",
-           "--env", "PUBLISH_TOKEN", "--env", "PUBLIC_ORIGIN=http://localhost:8080", image)
+           "--env", f"AUTH_MODE={mode}", *auth, "--env", "PUBLIC_ORIGIN=http://localhost:8080", image)
     for _ in range(30):
         result = subprocess.run(
             ["docker", "exec", name, "bun", "-e",
@@ -49,6 +50,12 @@ if (input.action === 'publish') {
     headers:{...headers,authorization:'Bearer '+canvas.writeToken,'if-match':'0'},body:JSON.stringify(input.document)});
   if (!pushed.ok) throw new Error('Publish failed');
   console.log(JSON.stringify({id:canvas.id}));
+} else if (input.action === 'update') {
+  if (process.env.PUBLISH_TOKEN) throw new Error('Open deployment unexpectedly has a publishing secret');
+  const response = await fetch(root+'/api/canvas/'+input.id, {method:'PUT',
+    headers:{'content-type':'application/json','if-match':'1'},body:JSON.stringify(input.document)});
+  if (!response.ok) throw new Error('Anonymous update failed');
+  console.log(JSON.stringify({rev:(await response.json()).rev}));
 } else {
   const response = await fetch(root+'/api/canvas/'+input.id);
   if (!response.ok) throw new Error('Read failed');
@@ -65,11 +72,20 @@ try:
                                   payload=json.dumps({"action": "publish", "document": document})))
     docker("kill", name)
     docker("rm", name)
-    start()
+    start("none")
     restored = json.loads(docker("exec", "--interactive", name, "bun", "-e", probe,
                                  payload=json.dumps({"action": "read", "id": published["id"]})))
     assert restored == {"title": document["title"], "rev": 1}, restored
-    print("Production container publishes and recovers its retained SQLite volume after SIGKILL")
+    updated = json.loads(docker("exec", "--interactive", name, "bun", "-e", probe,
+                                payload=json.dumps({"action": "update", "id": published["id"], "document": document})))
+    assert updated == {"rev": 2}, updated
+    docker("kill", name)
+    docker("rm", name)
+    start("none")
+    restored = json.loads(docker("exec", "--interactive", name, "bun", "-e", probe,
+                                 payload=json.dumps({"action": "read", "id": published["id"]})))
+    assert restored == {"title": document["title"], "rev": 2}, restored
+    print("Production container retains existing protected canvases, supports anonymous updates in trusted-network mode, and recovers after SIGKILL")
 finally:
     subprocess.run(["docker", "rm", "--force", name], capture_output=True, timeout=30)
     subprocess.run(["docker", "volume", "rm", volume], capture_output=True, timeout=30)

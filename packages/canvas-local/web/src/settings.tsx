@@ -18,9 +18,13 @@ export const SettingsPage = () => {
     }
   }
   useEffect(() => {
-    void fetchAccess().then(setAccess).catch(() => undefined)
-    void fetchUser().then(setUser).catch(() => undefined)
-    void load()
+    void fetchAccess().then((config) => {
+      setAccess(config)
+      if (config.accounts) {
+        void fetchUser().then(setUser).catch(() => undefined)
+        void load()
+      }
+    }).catch(() => setError("Could not load server settings"))
   }, [])
   const revoke = async (machine: Machine) => {
     setRevoking(machine.id); setError(undefined)
@@ -29,7 +33,7 @@ export const SettingsPage = () => {
     finally { setRevoking(undefined) }
   }
   return <div className={`app ${window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"}`}>
-    {signedOut ? <SignIn title="Sign in to manage machines" access={access} onLogin={(signedIn) => { setUser(signedIn); setSignedOut(false); void load() }} /> : <main className="access settings">
+    {access?.accounts === false ? <main className="access"><h1>Account sign-in is disabled</h1><p>This server does not use accounts or connected machines. Open your canvas link to continue.</p></main> : signedOut ? <SignIn title="Sign in to manage machines" access={access} onLogin={(signedIn) => { setUser(signedIn); setSignedOut(false); void load() }} /> : <main className="access settings">
       <h1>Connected machines</h1>
       {user && <p className="note">Signed in as {user.username}</p>}
       <p>Revoke a machine to stop its account token from accessing your canvases.</p>

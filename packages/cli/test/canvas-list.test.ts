@@ -167,7 +167,7 @@ test("--remote lists what the account owns beside what this checkout can edit", 
     "  2 canvases · 1 this checkout cannot edit",
   ]);
 
-  const request = app.seen[0];
+  const request = app.seen.find((request) => request.path === "/api/canvases");
   expect(request?.path).toBe("/api/canvases");
   expect(request?.headers.get("authorization")).toBe(`Bearer ${ACCOUNT}`);
 });
@@ -199,14 +199,14 @@ test("a canvas with nothing drawn, or a revision that will not read, is listed u
   expect(printed).toContain("2 canvases · 2 this checkout cannot edit");
 });
 
-test("--remote on a machine that is not signed in asks the app for nothing", async () => {
+test("--remote on a signed-out machine only checks whether the app requires credentials", async () => {
   await seed({ [id(1)]: written(id(1), "Auth flow rewrite", 7) });
 
   expect(await invoke("canvas", "list", "--remote", "--api", API)).toBe(1);
   expect(output.err.join("\n")).toContain(
     "not signed in to canvas.test [AUTH_REQUIRED]",
   );
-  expect(fetchMock).not.toHaveBeenCalled();
+  expect(app.seen.map((request) => request.path)).toEqual(["/api/access"]);
 });
 
 test("an empty PR_LENS_TOKEN is not a sign-in, which is how a workflow leaves it", async () => {
@@ -214,7 +214,7 @@ test("an empty PR_LENS_TOKEN is not a sign-in, which is how a workflow leaves it
 
   expect(await invoke("canvas", "list", "--remote", "--api", API)).toBe(1);
   expect(output.err.join("\n")).toContain("[AUTH_REQUIRED]");
-  expect(fetchMock).not.toHaveBeenCalled();
+  expect(app.seen.map((request) => request.path)).toEqual(["/api/access"]);
 });
 
 test("--remote with nothing on either side says so rather than showing a heading", async () => {

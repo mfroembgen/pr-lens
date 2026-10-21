@@ -1,6 +1,6 @@
 import { readString } from "../args.js";
-import { readToken } from "../auth.js";
-import { rotateCanvas } from "./api.js";
+import { readToken, requireToken } from "../auth.js";
+import { isOpenCanvasServer, rotateCanvas } from "./api.js";
 import type { Terminal } from "../terminal.js";
 import { PrLensCliError, usageError } from "../errors.js";
 import { updateRegistry, type Registered } from "./registry.js";
@@ -47,6 +47,14 @@ export const requireWriteToken = ({ id, entry }: Registered): string => {
   );
 };
 
+export const accountCredential = async (
+  env: Record<string, string | undefined>,
+  api: string,
+): Promise<string | undefined> => {
+  if (await isOpenCanvasServer(api)) return undefined;
+  return requireToken(env, api);
+};
+
 /**
  * The write token first: it works signed out and on stores without accounts.
  * The account token only works if the app finds the account owns the canvas.
@@ -55,11 +63,12 @@ export const writeCredential = async (
   registered: Registered,
   env: Record<string, string | undefined>,
   api: string,
-): Promise<string> => {
+): Promise<string | undefined> => {
   if (registered.entry.writeToken !== undefined) return registered.entry.writeToken;
 
   const account = await readToken(env, api);
   if (account !== undefined) return account;
+  if (await isOpenCanvasServer(api)) return undefined;
 
   throw new PrLensCliError(
     "CANVAS_UNREGISTERED",

@@ -2,12 +2,11 @@
  * The write token is the only proof, and it rides in every edit link ever
  * shared, so claiming retires it in the same step.
  */
-import { requireToken } from "../auth.js";
 import type { Terminal } from "../terminal.js";
 import { claimCanvas, listOwnedCanvases } from "./api.js";
 import { expectOne, parseOptions } from "../args.js";
 import { PrLensCliError } from "../errors.js";
-import { readApi, requireWriteToken, settlePendingRotation } from "./write.js";
+import { accountCredential, readApi, requireSameApi, requireWriteToken, settlePendingRotation } from "./write.js";
 import {
   findCanvas,
   mintWriteToken,
@@ -41,9 +40,14 @@ export const claimCommand = async (
   const api = readApi(values.api, env);
   const registry = await readRegistry();
   const selected = findCanvas(registry, ref);
+  requireSameApi(api, selected);
 
   // Checked first, so a signed-out machine never costs a rotation.
-  const account = await requireToken(env, api);
+  const account = await accountCredential(env, api);
+  if (account === undefined) {
+    terminal.out(`✓ ${api}/c/${selected.id} needs no sign-in`);
+    return;
+  }
 
   // Also finishes a claim whose answer was lost: its token is still pending.
   const settled = await settlePendingRotation(api, selected, terminal, env);
