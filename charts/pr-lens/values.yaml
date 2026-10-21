@@ -1,0 +1,44 @@
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/mfroembgen/pr-lens
+  tag: v0.1.0
+  pullPolicy: IfNotPresent
+
+publicOrigin: https://pr-lens.example.com
+gitlabOrigin: ""
+existingSecret: pr-lens
+publishTokenKey: token
+
+service:
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: pr-lens.example.com
+  tls: []
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClassName: ""
+  size: 1Gi
+  annotations: {}
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+deploymentAnnotations: {}
+podLabels: {}
+podAnnotations: {}
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []

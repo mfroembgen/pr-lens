@@ -2,7 +2,7 @@
   "name": "pr-lens",
   "version": "0.0.0",
   "private": true,
-  "description": "Review what actually matters — PR diffs as animated, interactive diagrams inside the GitHub pull request.",
+  "description": "Review what actually matters \u2014 PR diffs as animated, interactive diagrams inside the GitHub pull request.",
   "license": "MIT",
   "author": "Coldtea AI",
   "repository": {
@@ -10,21 +10,31 @@
     "url": "git+https://github.com/coldteadotai/pr-lens.git"
   },
   "type": "module",
-  "packageManager": "pnpm@10.5.2",
+  "packageManager": "bun@1.4.3",
   "engines": {
     "node": ">=20.11"
   },
   "scripts": {
-    "build": "pnpm -r run build",
-    "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm -r run test",
-    "schema:emit": "pnpm --filter @coldtea/pr-lens-schema run schema:emit",
-    "skill:sync": "pnpm --filter @coldtea/pr-lens-agent-skill run skill:sync",
-    "release:cli": "pnpm verify && cd packages/cli && pnpm publish --access public",
-    "verify": "pnpm run build && pnpm run typecheck && pnpm run test"
+    "build": "bun --bun run --filter './packages/*' --if-present build",
+    "typecheck": "bun run --filter './packages/*' --if-present typecheck",
+    "test": "bun run --filter './packages/*' --if-present test",
+    "schema:emit": "bun run --filter @coldtea/pr-lens-schema schema:emit",
+    "skill:sync": "bun run --filter @coldtea/pr-lens-agent-skill skill:sync",
+    "release:cli": "bun run verify && cd packages/cli && bun publish --access public",
+    "verify": "bun run build && bun run typecheck && bun run test && bun run test:chart",
+    "build:canvas": "bun --bun run --filter '@coldtea/pr-lens-canvas-local...' build",
+    "test:browser": "bun run --filter @coldtea/pr-lens-canvas-local test:browser",
+    "test:chart": "bun test charts/pr-lens/tests"
   },
   "devDependencies": {
     "typescript": "7.0.2",
-    "vitest": "4.1.11"
-  }
+    "vitest": "4.1.11",
+    "tsrs": "0.18.0-ts7.1.0-dev.20260929"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "trustedDependencies": [
+    "esbuild"
+  ]
 }
