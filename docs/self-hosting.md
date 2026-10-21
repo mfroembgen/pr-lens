@@ -2,11 +2,11 @@
 
 This fork runs the interactive canvas on your infrastructure. It keeps the upstream graph schema, renderer and CLI protocol. The server uses Bun and SQLite; Vite builds the React viewer; tsrs compiles and checks TypeScript.
 
-The viewer supports pan and zoom, light and dark themes, walkthroughs, payload inspection, source diffs, and live agent answers, highlighting and temporary sketches. Readers can ask questions from a normal canvas link. An outbound local bridge receives those questions and returns structured answers.
+The viewer supports pan and zoom, light and dark themes, walkthroughs, payload inspection, source diffs, and live highlighting and temporary sketches. Diagrams are authored locally and published through the canvas API.
 
 ## Install with Helm
 
-Image: `ghcr.io/mfroembgen/pr-lens:v0.1.5`. Chart: `oci://ghcr.io/mfroembgen/charts/pr-lens`, version `0.1.5`.
+Image: `ghcr.io/mfroembgen/pr-lens:v0.1.6`. Chart: `oci://ghcr.io/mfroembgen/charts/pr-lens`, version `0.1.6`.
 
 For the default protected mode, create a Secret through your existing secret manager. Its `token` key must contain 64 random hexadecimal characters. Keep the same value across restarts: the server derives its credential-encryption key from it.
 
@@ -26,7 +26,7 @@ ingress:
 
 ```sh
 helm upgrade --install pr-lens oci://ghcr.io/mfroembgen/charts/pr-lens \
-  --version 0.1.5 --namespace pr-lens --create-namespace --values values.yaml
+  --version 0.1.6 --namespace pr-lens --create-namespace --values values.yaml
 ```
 
 The chart runs one nonroot replica with a read-only root filesystem, writable `/tmp`, and a retained PVC. `Recreate` prevents two pods competing for the database. A restart briefly interrupts connections; clients reconnect and saved state remains available.
@@ -38,8 +38,8 @@ Volume retention is not a backup. Use storage snapshots or a consistent SQLite b
 For a VPN-only installation, set `authMode: none` in Helm values, or
 `AUTH_MODE=none` when running the server directly. No publishing Secret or GitLab
 sign-in is needed. Anyone who can reach the server can read, change, or delete
-canvases and process questions. Keep this mode behind a trusted private ingress.
-Existing diagrams, revisions, diffs and queued answers remain available when
+canvases. Keep this mode behind a trusted private ingress.
+Existing diagrams, revisions and diffs remain available when
 switching modes. The default `protected` mode retains the checks below.
 
 With `GITLAB_ORIGIN` configured, readers sign in using a GitLab token with `read_api` access. The browser sends it once over HTTPS. The server encrypts it in SQLite and issues an HttpOnly cookie lasting eight hours. It checks GitLab project membership before returning canvases, SVGs, diffs or answers. Private repository access requires Reporter or higher.
@@ -69,13 +69,11 @@ Push a graph through `PUT /api/canvas/{id}` using its write bearer token and `If
 
 Use `/c/{id}?rev={revision}` in MR notes to retain the reviewed commit. `/c/{id}` follows the latest push. SVG image paths include the stored revision. A new push has no diff until its matching diff upload succeeds.
 
-## Questions and live interaction
+## Live interaction
 
-Questions retain their graph revision and source context. They wait while the local agent is offline and survive server restarts. The [local bridge](../packages/canvas-local/agent/README.md) connects outward over HTTPS, leases a question, validates its repository and commit, runs the configured agent, and acknowledges the answer.
-
-The bridge opens no laptop listener. Its journal lets it resend a completed answer after a connection failure without invoking the agent again. Its configured command receives JSON on stdin. The bundled Codex adapter uses a read-only sandbox and structured output.
-
-Live pairing supports `canvas open`, `answer`, `show`, `fork` and `look`. Sessions expire after two inactive hours; pending questions are independent of that expiry. Each canvas accepts up to 200 questions. Published revisions remain until the canvas is deleted.
+Live pairing supports `canvas open`, `answer`, `show`, `fork` and `look` for a
+locally controlled presentation. Sessions expire after two inactive hours.
+Published revisions remain until the canvas is deleted.
 
 ## Development and releases
 
@@ -86,8 +84,8 @@ mise exec -- bun run verify
 mise exec -- bun run test:browser
 ```
 
-The workspace pins Bun, tsrs and build tools. Existing upstream assertions remain in place. Added tests cover authorization, SQLite recovery, device grants, immutable revisions and the bridge. Browser tests use the real server.
+The workspace pins Bun, tsrs and build tools. Existing upstream assertions remain in place. Added tests cover authorization, SQLite recovery, device grants, immutable revisions and live commands. Browser tests use the real server.
 
-Tagging `v0.1.5` verifies and publishes an amd64/arm64 image and matching OCI chart. Application release CI is separate from local diagram generation and MR updates.
+Tagging `v0.1.6` verifies and publishes an amd64/arm64 image and matching OCI chart. Application release CI is separate from local diagram generation and MR updates.
 
 The initial viewer was adapted from [the MIT community canvas](https://github.com/jasonkneen/pr-lens-with-canvas/tree/8394968c473d2699fbde6ab33f246d9b5aff6441/packages/canvas-local). Copyright and license notices are retained. This is an independent implementation of the public protocol; the upstream hosted application is maintained separately.

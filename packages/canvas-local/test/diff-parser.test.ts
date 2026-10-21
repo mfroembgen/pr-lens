@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { questionRequest } from "../web/src/question-request.js";
 import { parseDiff } from "../web/src/diff-parser.js";
 
 describe("diff inspector", () => {
@@ -19,15 +18,4 @@ describe("diff inspector", () => {
     expect(parseDiff('diff --git "a/a b.ts" "b/a b.ts"\n--- "a/a b.ts"\n+++ "b/a b.ts"\n@@ -1 +1 @@\n-a\n+b')[0]?.path).toBe("a b.ts");
     expect(parseDiff(String.raw`diff --git "a/caf\303\251.ts" "b/caf\303\251.ts"`)[0]?.path).toBe("café.ts");
   });
-});
-
-
-test("retries reuse an id only for the same canvas, revision and question", () => {
-  let next = 0;
-  const createId = () => String(++next);
-  const first = questionRequest(undefined, "canvas-a", 1, "What happens?", createId);
-  expect(questionRequest(first, "canvas-a", 1, "What happens?", createId)).toBe(first);
-  expect(questionRequest(first, "canvas-a", 2, "What happens?", createId).id).not.toBe(first.id);
-  expect(questionRequest(first, "canvas-b", 1, "What happens?", createId).id).not.toBe(first.id);
-  expect(questionRequest(first, "canvas-a", 1, "Where does it go?", createId).id).not.toBe(first.id);
 });

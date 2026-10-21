@@ -1,26 +1,20 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
-import { assertNever, LiveCommand, safeParseGraphDoc, ViewerLook, type GraphDoc } from "@coldtea/pr-lens-schema";
+import { LiveCommand, safeParseGraphDoc, ViewerLook, type GraphDoc } from "@coldtea/pr-lens-schema";
 import { z } from "zod";
 import { apiTile, drawSketch, drawTiles, type DrawnTile } from "./draw.js";
 import { unknownPlaces, validOf, placesOf } from "./places.js";
 import { AuthMode, bearer, createAuth, header } from "./auth.js";
 import { createDeviceRoutes } from "./devices.js";
 import { Refusal, invalid, liveEnded, notFound } from "./errors.js";
-import { FailureCode, hashToken, mintToken, openStore, Provenance, SourceDiff, TOKEN, tokenMatches, type Canvas, type Question, type Session, type StoredEvent } from "./store.js";
+import { hashToken, mintToken, openStore, Provenance, SourceDiff, TOKEN, tokenMatches, type Canvas, type Session, type StoredEvent } from "./store.js";
 
 const MAX_BODY = 4_000_000;
 const SESSION_MS = 2 * 60 * 60 * 1000;
-const LEASE_MS = 120_000;
 const MAX_EVENTS = 200;
-const MAX_QUESTIONS = 200;
 const TokenBody = z.object({ writeToken: z.string().regex(TOKEN) });
 const ClaimBody = TokenBody.extend({ nextWriteToken: z.string().regex(TOKEN) });
-const AskBody = z.object({ id: z.string().regex(TOKEN).optional(), question: z.string().trim().min(1).max(500), look: ViewerLook.optional() });
-const LeaseBody = z.object({ lease: z.string().regex(TOKEN) });
-const AckBody = LeaseBody.extend({ result: LiveCommand });
-const FailBody = LeaseBody.extend({ code: FailureCode, retryable: z.boolean() });
 export type LiveEvent = StoredEvent | { kind: "command"; command: LiveCommand; sketch?: ReturnType<typeof drawSketch> };
 export type ServerOptions = {
   dir: string; dbPath?: string; web?: string; publishToken?: string; authMode?: AuthMode;
@@ -130,113 +124,6 @@ export const createCanvasServer = async (options: ServerOptions) => {
     }
     return input;
   };
-  const publicQuestion = (question: Question) => {
-    switch (question.status) {
-      case "pending": return { id: question.id, question: question.question, status: question.status, createdAt: question.createdAt };
-      case "leased": return { id: question.id, question: question.question, status: question.status, createdAt: question.createdAt, expiresAt: new Date(question.leaseUntil).toISOString() };
-      case "completed": return { id: question.id, question: question.question, status: question.status, createdAt: question.createdAt, result: question.result, seq: question.seq };
-      case "failed": return { id: question.id, question: question.question, status: question.status, createdAt: question.createdAt, error: question.error };
-      default: return assertNever(question);
-    }
-  };
-  const questionRoutes = async (request: IncomingMessage, id: string, questionId?: string, operation?: string, live?: Session, revision?: number): Promise<Answer | undefined> => {
-    const method = request.method ?? "GET";
-    const canvas = await readable(request, id, revision);
-    const browser = async () => { if (live !== undefined) await tab(request, live); };
-    let workerOwner: string | undefined;
-    const worker = async () => {
-      workerOwner = await auth.account(request);
-      if (live !== undefined) return runner(request, live);
-      if (!writeAllowed(request, canvas) && !(canvas.owner !== undefined && await auth.account(request) === canvas.owner)) throw notFound();
-      return canvas;
-    };
-    const confirmWorker = () => {
-      const current = store.read(id);
-      const currentLive = live === undefined ? undefined : session(id, live.id);
-      if (current === undefined || (!writeAllowed(request, current) &&
-        !(currentLive?.keyHash !== undefined && tokenMatches(bearer(request), currentLive.keyHash)) &&
-        !(current.owner !== undefined && current.owner === workerOwner))) throw notFound();
-    };
-    const belongs = (question: Question) => question.canvas === id && (live === undefined || question.session === live.id);
-    const list = () => store.canvasQuestions(id).filter((question) => belongs(question) && (revision === undefined || question.rev === revision));
-    if (questionId === undefined && method === "GET") {
-      await browser();
-      return { status: 200, json: { questions: list().map(publicQuestion) } };
-    }
-    if (questionId === undefined && method === "POST") {
-      await browser();
-      const input = parse(AskBody, await body(request));
-      const qid = input.id ?? mintToken();
-      return store.transaction(() => {
-        const current = revision === undefined ? store.read(id) : store.revision(id, revision);
-        if (current === undefined || current.rev === 0) throw notFound();
-        const prior = store.question(qid);
-        if (prior !== undefined) {
-          if (!belongs(prior) || prior.question !== input.question) throw notFound();
-          if (prior.rev !== current.rev) throw new Refusal(409, "REVISION_MOVED", "This question id was already used for another revision", { rev: prior.rev });
-          return { status: 200, json: publicQuestion(prior) };
-        }
-        if (store.canvasQuestions(id).length >= MAX_QUESTIONS) throw new Refusal(429, "RATE_LIMITED", "This canvas has reached its question limit", { retryAt: new Date(Date.now() + SESSION_MS).toISOString() });
-        const question: Question = { id: qid, canvas: id, question: input.question, rev: current.rev, status: "pending", createdAt: new Date().toISOString(), attempts: 0,
-          ...(live === undefined ? {} : { session: live.id }), ...(input.look === undefined ? {} : { look: input.look }),
-          ...(current.diff === undefined ? {} : { headCommit: current.diff.headCommit, baseCommit: current.diff.baseCommit }) };
-        store.saveQuestion(question);
-        return { status: 201, json: publicQuestion(question) };
-      });
-    }
-    if (questionId === "lease" && method === "POST") {
-      await worker();
-      return store.transaction(() => {
-        confirmWorker();
-        const questions = list();
-        for (const expired of questions) if (expired.status === "leased" && expired.leaseUntil <= Date.now() && expired.attempts >= 3)
-          store.saveQuestion({ ...expired, status: "failed", error: "AGENT_TIMEOUT" });
-        const pending = questions.find((q) => (q.status === "pending" || (q.status === "leased" && q.leaseUntil <= Date.now())) && q.attempts < 3);
-        if (pending === undefined) return { status: 200, json: { question: null } };
-        const lease = mintToken();
-        const expiresAt = Date.now() + LEASE_MS;
-        store.saveQuestion({ ...pending, status: "leased", leaseHash: hashToken(lease), leaseUntil: expiresAt, attempts: pending.attempts + 1 });
-        const snapshot = store.revision(id, pending.rev);
-        if (snapshot === undefined) throw notFound();
-        return { status: 200, json: { question: { id: pending.id, question: pending.question, lease, expiresAt: new Date(expiresAt).toISOString(), headCommit: pending.headCommit, baseCommit: pending.baseCommit, look: pending.look ?? live?.look?.look, document: snapshot.document, rev: pending.rev, diff: snapshot.diff } } };
-      });
-    }
-    if (questionId !== undefined && method === "POST") {
-      await worker();
-      if (operation !== "ack" && operation !== "lease" && operation !== "renew" && operation !== "fail") return undefined;
-      const raw = await body(request);
-      const value = operation === "ack" ? { kind: "ack" as const, ...parse(AckBody, raw) } : operation === "fail" ? { kind: "fail" as const, ...parse(FailBody, raw) } : { kind: "lease" as const, ...parse(LeaseBody, raw) };
-      return store.transaction(() => {
-        confirmWorker();
-        const question = store.question(questionId);
-        if (question === undefined || !belongs(question)) throw notFound();
-        if (question.status === "completed" && value.kind === "ack" && tokenMatches(value.lease, question.leaseHash)) return { status: 200, json: { ok: true, seq: question.seq } };
-        if (question.status !== "leased" || question.leaseUntil <= Date.now() || !tokenMatches(value.lease, question.leaseHash)) throw notFound();
-        switch (value.kind) {
-          case "ack": {
-            const snapshot = store.revision(id, question.rev);
-            if (snapshot === undefined) throw notFound();
-            const result = command(snapshot, value.result);
-            const original = question.session === undefined ? undefined : store.session(question.session);
-            const seq = original !== undefined && original.expiresAt > Date.now() ? append(original, { kind: "command", command: result }) : 0;
-            store.saveQuestion({ ...question, status: "completed", result, seq });
-            return { status: 200, json: { ok: true, seq } };
-          }
-          case "fail": {
-            store.saveQuestion(value.retryable && question.attempts < 3 ? { ...question, status: "pending" } : { ...question, status: "failed", error: value.code });
-            return { status: 200, json: { ok: true } };
-          }
-          case "lease": {
-            const expiresAt = Date.now() + LEASE_MS;
-            store.saveQuestion({ ...question, leaseUntil: expiresAt });
-            return { status: 200, json: { ok: true, expiresAt: new Date(expiresAt).toISOString() } };
-          }
-          default: return assertNever(value);
-        }
-      });
-    }
-    return undefined;
-  };
   const routes = async (request: IncomingMessage, url: URL): Promise<Answer | undefined> => {
     const method = request.method ?? "GET";
     const parts = url.pathname.split("/").filter(Boolean);
@@ -276,7 +163,7 @@ export const createCanvasServer = async (options: ServerOptions) => {
       return { status: 200, json: { canvases } };
     }
     if (parts[0] !== "api" || parts[1] !== "canvas") return undefined;
-    const [, , id, action, liveId, sub, questionId, operation] = parts;
+    const [, , id, action, liveId, sub] = parts;
     if (id === undefined) {
       if (method !== "POST") return undefined;
       auth.publisher(request);
@@ -394,7 +281,6 @@ export const createCanvasServer = async (options: ServerOptions) => {
         return { status: 200, json: { baseCommit: diff.baseCommit, headCommit: diff.headCommit } };
       }
     }
-    if (action === "questions") return questionRoutes(request, id, liveId, sub, undefined, revision);
     if (action !== "live") return undefined;
     if (liveId === undefined) {
       if (method !== "POST") return undefined;
@@ -429,7 +315,6 @@ export const createCanvasServer = async (options: ServerOptions) => {
       return { status: 200, json: { ok: true } };
     }
     if (sub === "look" && method === "GET") { await runner(request, live); return { status: 200, json: live.look === undefined ? { status: "not_open" } : { status: "seen", ...live.look } }; }
-    if (sub === "questions") return questionRoutes(request, id, questionId, operation, live, revision);
     return undefined;
   };
   const serveFile = async (response: ServerResponse, root: string, path: string): Promise<boolean> => {

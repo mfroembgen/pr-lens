@@ -40,19 +40,6 @@ const Session = z.object({
   look: z.object({ seenAt: z.string(), look: ViewerLook }).optional(),
 });
 export type Session = z.infer<typeof Session>;
-export const FailureCode = z.enum(["HEAD_MISMATCH", "AGENT_FAILED", "INVALID_ANSWER", "AGENT_TIMEOUT"]);
-const QuestionBase = z.object({
-  id: z.string(), canvas: z.string(), session: z.string().optional(), question: z.string(),
-  rev: z.number().int(), headCommit: z.string().optional(), baseCommit: z.string().optional(),
-  createdAt: z.string(), attempts: z.number().int(), look: ViewerLook.optional(),
-});
-const Question = z.discriminatedUnion("status", [
-  QuestionBase.extend({ status: z.literal("pending") }),
-  QuestionBase.extend({ status: z.literal("leased"), leaseHash: z.string(), leaseUntil: z.number() }),
-  QuestionBase.extend({ status: z.literal("completed"), leaseHash: z.string(), result: LiveCommand, seq: z.number().int() }),
-  QuestionBase.extend({ status: z.literal("failed"), error: FailureCode }),
-]);
-export type Question = z.infer<typeof Question>;
 const AuthSession = z.object({
   id: z.string(), token: z.string(), expiresAt: z.number(), installHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   user: z.object({ id: z.number().int(), username: z.string(), name: z.string() }),
@@ -83,9 +70,6 @@ export const openStore = async (dir: string, filename = join(dir, "canvas.sqlite
     CREATE TABLE IF NOT EXISTS revisions (canvas TEXT NOT NULL REFERENCES canvases(id) ON DELETE CASCADE, rev INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(canvas, rev));
     CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, canvas TEXT NOT NULL REFERENCES canvases(id) ON DELETE CASCADE, expires INTEGER NOT NULL, data TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires);
-    CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, canvas TEXT NOT NULL REFERENCES canvases(id) ON DELETE CASCADE, session TEXT, data TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS questions_session ON questions(session);
-    CREATE INDEX IF NOT EXISTS questions_canvas ON questions(canvas);
     CREATE TABLE IF NOT EXISTS auth_sessions (id TEXT PRIMARY KEY, expires INTEGER NOT NULL, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS machines (id TEXT PRIMARY KEY, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, expires INTEGER NOT NULL, data TEXT NOT NULL);
@@ -113,9 +97,8 @@ export const openStore = async (dir: string, filename = join(dir, "canvas.sqlite
   const read = (id: string) => parse(db.query<{ data: string }, [string]>("SELECT data FROM canvases WHERE id=?").get(id), Canvas);
   const write = (canvas: Canvas) => db.query("INSERT INTO canvases(id,data) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data").run(canvas.id, JSON.stringify(canvas));
   const saveSession = (session: Session) => db.query("INSERT INTO sessions(id,canvas,expires,data) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET expires=excluded.expires,data=excluded.data").run(session.id, session.canvas, session.expiresAt, JSON.stringify(session));
-  const saveQuestion = (question: Question) => db.query("INSERT INTO questions(id,canvas,session,data) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data").run(question.id, question.canvas, question.session ?? null, JSON.stringify(question));
   return {
-    read, write, saveSession, saveQuestion,
+    read, write, saveSession,
     remove: (id: string) => db.query("DELETE FROM canvases WHERE id=?").run(id),
     all: () => db.query<{ data: string }, []>("SELECT data FROM canvases").all().map((row) => Canvas.parse(JSON.parse(row.data))),
     revision: (id: string, rev: number) => parse(db.query<{ data: string }, [string, number]>("SELECT data FROM revisions WHERE canvas=? AND rev=?").get(id, rev), Canvas),
@@ -123,9 +106,6 @@ export const openStore = async (dir: string, filename = join(dir, "canvas.sqlite
     saveRevision: (canvas: Canvas) => db.query("INSERT INTO revisions(canvas,rev,data) VALUES(?,?,?)").run(canvas.id, canvas.rev, JSON.stringify(canvas)),
     session: (id: string) => parse(db.query<{ data: string }, [string]>("SELECT data FROM sessions WHERE id=?").get(id), Session),
     sessions: (canvas: string) => db.query<{ data: string }, [string]>("SELECT data FROM sessions WHERE canvas=?").all(canvas).map((row) => Session.parse(JSON.parse(row.data))),
-    question: (id: string) => parse(db.query<{ data: string }, [string]>("SELECT data FROM questions WHERE id=?").get(id), Question),
-    questions: (session: string) => db.query<{ data: string }, [string]>("SELECT data FROM questions WHERE session=? ORDER BY rowid").all(session).map((row) => Question.parse(JSON.parse(row.data))),
-    canvasQuestions: (canvas: string) => db.query<{ data: string }, [string]>("SELECT data FROM questions WHERE canvas=? ORDER BY rowid").all(canvas).map((row) => Question.parse(JSON.parse(row.data))),
     authSession: (id: string) => parse(db.query<{ data: string }, [string]>("SELECT data FROM auth_sessions WHERE id=?").get(id), AuthSession),
     saveAuthSession: (session: AuthSession) => db.query("INSERT INTO auth_sessions(id,expires,data) VALUES(?,?,?)").run(session.id, session.expiresAt, JSON.stringify(session)),
     removeAuthSession: (id: string) => db.query("DELETE FROM auth_sessions WHERE id=?").run(id),

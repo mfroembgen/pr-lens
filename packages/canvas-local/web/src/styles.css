@@ -124,9 +124,8 @@ button:disabled { opacity: 0.35; cursor: default; }
 .json .line.removed .key, .json .line.removed .value { color: #e25555; }
 .source { font-size: 12px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
 
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, pre:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-input, textarea, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px; width: 100%; }
-textarea { resize: vertical; }
+button:focus-visible, input:focus-visible, select:focus-visible, pre:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+input, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px; width: 100%; }
 form { display: grid; gap: 10px; }
 label { font-size: 13px; font-weight: 600; }
 .note { color: var(--muted); font-size: 13px; line-height: 1.5; }
@@ -136,14 +135,6 @@ label { font-size: 13px; font-weight: 600; }
 .rail { position: absolute; top: 76px; right: 12px; bottom: 12px; width: min(440px, calc(100% - 24px)); background: var(--chrome); border: 1px solid var(--line); border-radius: 14px; padding: 16px; backdrop-filter: blur(10px); overflow: auto; z-index: 3; }
 .rail header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .rail h2 { margin: 0; font-size: 18px; }
-.rail h3 { font-size: 15px; }
-.question-history { list-style: none; margin: 0; padding: 0; }
-.question-history li { border-top: 1px solid var(--line); padding: 12px 0; }
-.question-history p { margin: 0 0 8px; overflow-wrap: anywhere; }
-.question-history button { display: block; margin-top: 8px; }
-.question-status { font-size: 12px; color: var(--muted); }
-.question-status.completed { color: #2fb67a; }
-.question-status.failed { color: #e25555; }
 .diff-inspector { width: min(860px, calc(100% - 24px)); }
 .commits { font: 12px/1.6 ui-monospace, Menlo, monospace; display: grid; grid-template-columns: 40px 1fr; }
 .commits dd { margin: 0; overflow-wrap: anywhere; user-select: text; }

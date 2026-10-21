@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from "bun:test";
+import { Database } from "bun:sqlite";
 import { createServer, type Server } from "node:http";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -57,6 +58,47 @@ afterAll(async () => {
 });
 
 describe("durable canvas storage", () => {
+  it("does not create question storage for a new canvas database", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "canvas-no-queue-"));
+    directories.push(dir);
+    const store = await openStore(dir);
+    store.close();
+    const db = new Database(join(dir, "canvas.sqlite"), { readonly: true });
+    try { expect(db.query("SELECT name FROM sqlite_master WHERE name LIKE 'questions%'").all()).toEqual([]); }
+    finally { db.close(); }
+  });
+
+  it("opens a legacy question database without changing saved canvases, revisions or old table data", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "canvas-old-queue-"));
+    const filename = join(dir, "canvas.sqlite");
+    const id = mintToken();
+    const source = { baseCommit: example.provenance.base.sha, headCommit: example.provenance.head.sha, unifiedDiff: "diff --git a/source.ts b/source.ts\n-old\n+new\n" };
+    const canvas = { id, tokenHash: hashToken(mintToken()), rev: 1, document: example, diff: source, createdAt: new Date().toISOString() };
+    const old = new Database(filename, { create: true, strict: true });
+    old.exec(`
+      CREATE TABLE canvases (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE revisions (canvas TEXT NOT NULL REFERENCES canvases(id) ON DELETE CASCADE, rev INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(canvas, rev));
+      CREATE TABLE questions (id TEXT PRIMARY KEY, canvas TEXT NOT NULL REFERENCES canvases(id) ON DELETE CASCADE, session TEXT, data TEXT NOT NULL);
+    `);
+    old.query("INSERT INTO canvases(id,data) VALUES(?,?)").run(id, JSON.stringify(canvas));
+    old.query("INSERT INTO revisions(canvas,rev,data) VALUES(?,?,?)").run(id, 1, JSON.stringify(canvas));
+    const retained = JSON.stringify({ status: "pending", question: "An old queued question" });
+    old.query("INSERT INTO questions(id,canvas,data) VALUES(?,?,?)").run("legacy-row", id, retained);
+    old.close();
+    const first = await start({ dir, authMode: "none" });
+    expect((await request(first.api, "GET", `/api/canvas/${id}/page`)).json).toMatchObject({ rev: 1, document: example });
+    expect((await request(first.api, "GET", `/api/canvas/${id}/diff`)).json).toEqual(source);
+    expect((await request(first.api, "PUT", `/api/canvas/${id}`, { body: { ...example, title: "Updated canvas" }, headers: { "if-match": "1" } })).status).toBe(200);
+    await close(first.server);
+    const restarted = await start({ dir, authMode: "none" });
+    expect((await request(restarted.api, "GET", `/api/canvas/${id}/page`)).json).toMatchObject({ rev: 2, document: { title: "Updated canvas" } });
+    expect((await request(restarted.api, "GET", `/api/canvas/${id}/page?rev=1`)).json).toMatchObject({ rev: 1, document: example });
+    expect((await request(restarted.api, "GET", `/api/canvas/${id}/diff?rev=1`)).json).toEqual(source);
+    const db = new Database(filename, { readonly: true });
+    try { expect(db.query("SELECT data FROM questions WHERE id='legacy-row'").get()).toEqual({ data: retained }); }
+    finally { db.close(); }
+  });
+
   it("requires a valid publisher secret and preserves immutable revision images", async () => {
     const { api, dir, server } = await start();
     expect((await request(api, "POST", "/api/canvas")).status).toBe(401);
@@ -79,52 +121,28 @@ describe("durable canvas storage", () => {
     expect(z.object({ rev: z.number() }).parse((await request(restarted.api, "GET", `/api/canvas/${canvas.id}`)).json).rev).toBe(2);
   });
 
-  it("persists questions, leases, live results and look across restart without duplicate acknowledgements", async () => {
+  it("persists manual live commands and viewer context across restart", async () => {
     const first = await start();
     const canvas = await setup(first.api);
-    const qid = mintToken();
     const look = { following: true, rev: 1, diagram: null, inFrame: [], scope: null, answer: null, fork: null };
     await request(first.api, "POST", `${canvas.path}/look`, { token: canvas.secret, body: look });
-    const ask = { id: qid, question: "What changed?", look };
-    expect((await request(first.api, "POST", `${canvas.path}/questions`, { token: canvas.secret, body: ask })).status).toBe(201);
-    expect((await request(first.api, "POST", `${canvas.path}/questions`, { token: canvas.secret, body: ask })).status).toBe(200);
-    expect((await request(first.api, "POST", `${canvas.path}/questions/lease`, { token: canvas.secret })).status).toBe(404);
-    const leased = z.object({ question: z.object({ id: z.string(), lease: z.string(), rev: z.number(), look: z.unknown() }) }).parse((await request(first.api, "POST", `${canvas.path}/questions/lease`, { token: canvas.writeToken })).json).question;
-    expect(leased).toMatchObject({ id: qid, rev: 1, look });
+    const answer = { kind: "answer", question: "What changed?", steps: [{ heading: "The service changed", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The request uses the updated service." }] }] }] };
+    expect((await request(first.api, "POST", canvas.path, { token: canvas.writeToken, body: answer })).status).toBe(200);
     await close(first.server);
     const restarted = await start({ dir: first.dir });
-    expect((await request(restarted.api, "GET", `${canvas.path}/look`, { token: canvas.writeToken })).json).toMatchObject({ status: "seen", look });
-    const answer = { kind: "answer", question: "What changed?", steps: [{ heading: "The service changed", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The request uses the updated service." }] }] }] };
-    const ack = { lease: leased.lease, result: answer };
-    const acknowledged = await request(restarted.api, "POST", `${canvas.path}/questions/${qid}/ack`, { token: canvas.writeToken, body: ack });
-    expect(acknowledged.status).toBe(200);
-    expect((await request(restarted.api, "POST", `${canvas.path}/questions/${qid}/ack`, { token: canvas.writeToken, body: ack })).json).toEqual(acknowledged.json);
-    const events = z.object({ events: z.array(z.unknown()) }).parse((await request(restarted.api, "GET", canvas.path, { token: canvas.secret })).json);
-    expect(events.events).toHaveLength(1);
-    expect((await request(restarted.api, "GET", `${canvas.path}/questions`, { token: canvas.secret })).json).toMatchObject({ questions: [{ id: qid, status: "completed" }] });
+    const read = await request(restarted.api, "GET", `${canvas.path}/look`, { token: canvas.writeToken });
+    expect(read.json).toMatchObject({ status: "seen", look });
+    expect(read.json).not.toHaveProperty("questions");
+    const events = await request(restarted.api, "GET", canvas.path, { token: canvas.secret });
+    expect(events.json).toMatchObject({ events: [{ seq: 1, event: { kind: "command", command: answer } }] });
     const other = await setup(restarted.api);
-    expect((await request(restarted.api, "POST", `${other.path}/questions/${qid}/ack`, { token: other.writeToken, body: ack })).status).toBe(404);
-    expect((await request(restarted.api, "GET", `${canvas.path}/questions`, { token: other.secret })).status).toBe(404);
+    expect((await request(restarted.api, "GET", canvas.path, { token: other.secret })).status).toBe(404);
   });
 
-  it("redelivers expired leases, enforces ownership and recovers write tokens", async () => {
+  it("enforces ownership and recovers write tokens", async () => {
     const accountToken = `prl_u_${mintToken()}`;
-    const { api, dir } = await start({ accountToken });
+    const { api } = await start({ accountToken });
     const canvas = await setup(api);
-    const qid = mintToken();
-    await request(api, "POST", `${canvas.path}/questions`, { token: canvas.secret, body: { id: qid, question: "Explain the service" } });
-    const Lease = z.object({ question: z.object({ lease: z.string() }) });
-    const old = Lease.parse((await request(api, "POST", `${canvas.path}/questions/lease`, { token: canvas.writeToken })).json).question;
-    const db = await openStore(dir);
-    const question = db.question(qid);
-    if (question?.status !== "leased") throw new Error("Missing lease");
-    db.saveQuestion({ ...question, leaseUntil: Date.now() - 1 });
-    const fresh = Lease.parse((await request(api, "POST", `${canvas.path}/questions/lease`, { token: canvas.writeToken })).json).question;
-    expect(fresh.lease).not.toBe(old.lease);
-    expect((await request(api, "POST", `${canvas.path}/questions/${qid}/lease`, { token: canvas.writeToken, body: { lease: old.lease } })).status).toBe(404);
-    expect((await request(api, "POST", `${canvas.path}/questions/${qid}/fail`, { token: canvas.writeToken, body: { lease: fresh.lease, code: "HEAD_MISMATCH", retryable: false } })).status).toBe(200);
-    expect((await request(api, "GET", `${canvas.path}/questions`, { token: canvas.secret })).json).toMatchObject({ questions: [{ status: "failed", error: "HEAD_MISMATCH" }] });
-    db.close();
     const next = mintToken();
     expect((await request(api, "POST", `/api/canvas/${canvas.id}/claim`, { token: accountToken, publish: true, body: { writeToken: canvas.writeToken, nextWriteToken: next } })).status).toBe(200);
     expect((await request(api, "POST", `/api/canvas/${canvas.id}/claim`, { token: accountToken, publish: true, body: { writeToken: canvas.writeToken, nextWriteToken: next } })).status).toBe(200);
@@ -136,43 +154,25 @@ describe("durable canvas storage", () => {
     expect((await request(api, "POST", `/api/canvas/${canvas.id}/rotate`, { token: recovered, publish: true, body: { writeToken: recovered } })).status).toBe(200);
   });
 
-  it("recovers canvas-level questions after live sessions expire and bounds retained history", async () => {
+  it("expires idle live sessions without discarding the canvas", async () => {
     const first = await start();
     const canvas = await setup(first.api);
-    const qid = mintToken();
-    expect((await request(first.api, "POST", `/api/canvas/${canvas.id}/questions`, { body: { id: qid, question: "What changed?" } })).status).toBe(201);
-    const secondId = mintToken();
-    await request(first.api, "POST", `${canvas.path}/questions`, { token: canvas.secret, body: { id: secondId, question: "Explain this part" } });
-    const db = await openStore(first.dir);
-    const live = db.session(canvas.session);
+    const store = await openStore(first.dir);
+    const live = store.session(canvas.session);
     if (live === undefined) throw new Error("Missing session");
-    db.saveSession({ ...live, expiresAt: Date.now() - 1 });
-    db.close();
+    store.saveSession({ ...live, expiresAt: Date.now() - 1 });
+    store.close();
     await close(first.server);
     const restarted = await start({ dir: first.dir });
     expect((await request(restarted.api, "GET", `${canvas.path}/look`, { token: canvas.writeToken })).status).toBe(404);
-    const pending = z.object({ questions: z.array(z.object({ id: z.string(), status: z.string() })) }).parse((await request(restarted.api, "GET", `/api/canvas/${canvas.id}/questions`)).json);
-    expect(pending.questions.map((q) => q.id)).toEqual([qid, secondId]);
-    const leased = z.object({ question: z.object({ id: z.string(), lease: z.string() }) }).parse((await request(restarted.api, "POST", `/api/canvas/${canvas.id}/questions/lease`, { token: canvas.writeToken })).json).question;
-    expect(leased.id).toBe(qid);
-    expect((await request(restarted.api, "POST", `/api/canvas/${canvas.id}/questions/${qid}/renew`, { token: canvas.writeToken, body: { lease: leased.lease } })).status).toBe(200);
-    const result = { kind: "show", focus: { kind: "all" } };
-    expect((await request(restarted.api, "POST", `/api/canvas/${canvas.id}/questions/${qid}/ack`, { token: canvas.writeToken, body: { lease: leased.lease, result } })).json).toEqual({ ok: true, seq: 0 });
-    const fill = await openStore(first.dir);
-    for (let index = 0; index < 198; index += 1) fill.saveQuestion({ id: mintToken(), canvas: canvas.id, question: "Queued question", rev: 1, status: "pending", createdAt: new Date().toISOString(), attempts: 0 });
-    fill.close();
-    expect((await request(restarted.api, "POST", `/api/canvas/${canvas.id}/questions`, { body: { question: "One more question" } })).status).toBe(429);
-    expect(z.object({ questions: z.array(z.unknown()) }).parse((await request(restarted.api, "GET", `/api/canvas/${canvas.id}/questions`)).json).questions).toHaveLength(200);
+    expect((await request(restarted.api, "GET", `/api/canvas/${canvas.id}/page`)).status).toBe(200);
   });
 
-  it("serves historical documents and diffs and pins questions to the displayed revision", async () => {
+  it("serves immutable historical documents and source diffs", async () => {
     const { api } = await start();
     const canvas = await setup(api);
     const source = { baseCommit: example.provenance.base.sha, headCommit: example.provenance.head.sha, unifiedDiff: "diff --git a/source.ts b/source.ts\n-old\n+new\n" };
     expect((await request(api, "PUT", `/api/canvas/${canvas.id}/diff`, { publish: true, token: canvas.writeToken, body: source })).status).toBe(200);
-    const qid = mintToken();
-    const questionBody = { id: qid, question: "What did this revision change?" };
-    expect((await request(api, "POST", `/api/canvas/${canvas.id}/questions?rev=1`, { body: questionBody })).status).toBe(201);
     const newer = { ...example, title: "The next revision", provenance: { ...example.provenance, head: { sha: "3".repeat(40) } } };
     expect((await request(api, "PUT", `/api/canvas/${canvas.id}`, { publish: true, token: canvas.writeToken, headers: { "if-match": "1" }, body: newer })).status).toBe(200);
     expect((await request(api, "GET", `/api/canvas/${canvas.id}/diff`)).status).toBe(404);
@@ -182,14 +182,6 @@ describe("durable canvas storage", () => {
     expect((await request(api, "GET", `/api/canvas/${canvas.id}/page?rev=999`)).status).toBe(404);
     expect((await request(api, "GET", `/api/canvas/${canvas.id}/page?rev=1junk`)).status).toBe(400);
     expect((await request(api, "PUT", `/api/canvas/${canvas.id}?rev=1`, { publish: true, token: canvas.writeToken, headers: { "if-match": "2" }, body: example })).status).toBe(400);
-    const moved = await request(api, "POST", `/api/canvas/${canvas.id}/questions?rev=2`, { body: questionBody });
-    expect(moved.status).toBe(409);
-    expect(moved.json).toMatchObject({ error: { code: "REVISION_MOVED", rev: 1 } });
-    expect((await request(api, "POST", `/api/canvas/${canvas.id}/questions?rev=1`, { body: questionBody })).status).toBe(200);
-    expect(z.object({ questions: z.array(z.unknown()) }).parse((await request(api, "GET", `/api/canvas/${canvas.id}/questions?rev=1`)).json).questions).toHaveLength(1);
-    expect((await request(api, "GET", `/api/canvas/${canvas.id}/questions?rev=2`)).json).toEqual({ questions: [] });
-    const job = await request(api, "POST", `/api/canvas/${canvas.id}/questions/lease`, { token: canvas.writeToken });
-    expect(job.json).toMatchObject({ question: { id: qid, rev: 1, headCommit: source.headCommit, baseCommit: source.baseCommit, document: { title: example.title }, diff: source } });
   });
 
   it("persists exact source diff and prevents unauthenticated attachment writes", async () => {
@@ -232,7 +224,7 @@ describe("GitLab access", () => {
     expect(page.json).toMatchObject({ project: { id: 42, path: "example/project" } });
     const image = z.object({ tiles: z.array(z.object({ images: z.object({ light: z.string() }) })) }).parse(page.json).tiles[0]!.images.light;
     expect((await fetch(image, { headers: { cookie } })).status).toBe(200);
-    expect((await request(first.api, "POST", `${canvas.path}/questions`, { token: canvas.secret, body: { question: "Why?" }, headers: { cookie, origin: "https://attacker.example" } })).status).toBe(403);
+    expect((await request(first.api, "POST", canvas.path, { token: canvas.writeToken, body: { kind: "show", focus: { kind: "all" } }, headers: { cookie, origin: "https://attacker.example" } })).status).toBe(403);
     expect((await request(first.api, "POST", "/api/auth/logout", { headers: { cookie } })).status).toBe(403);
     await close(first.server);
     const database = await readFile(join(first.dir, "canvas.sqlite"));
@@ -243,11 +235,10 @@ describe("GitLab access", () => {
     expect((await request(restarted.api, "GET", `/api/canvas/${canvas.id}/page`, { headers: { cookie } })).status).toBe(200);
     access = 10;
     expect((await request(restarted.api, "GET", `/api/canvas/${canvas.id}/page`, { headers: { cookie } })).status).toBe(404);
-    expect((await request(restarted.api, "GET", `/api/canvas/${canvas.id}/questions`, { headers: { cookie } })).status).toBe(404);
     access = 0;
     expect((await request(restarted.api, "GET", `/api/canvas/${canvas.id}/page`, { headers: { cookie } })).status).toBe(404);
     expect((await fetch(`${restarted.api}${new URL(image).pathname}`, { headers: { cookie } })).status).toBe(404);
-    expect((await request(restarted.api, "POST", `${canvas.path}/questions/lease`, { token: canvas.writeToken, headers: { "x-pr-lens-gitlab-token": token } })).status).toBe(404);
+    expect((await request(restarted.api, "POST", canvas.path, { token: canvas.writeToken, body: { kind: "show", focus: { kind: "all" } }, headers: { "x-pr-lens-gitlab-token": token } })).status).toBe(404);
     expect(seenPaths.every((path) => path === "/api/v4/user" || path === "/api/v4/projects/42")).toBe(true);
     expect((await request(restarted.api, "POST", "/api/auth/logout", { headers: { cookie, origin: restarted.api } })).status).toBe(200);
     expect((await request(restarted.api, "GET", "/api/auth/me", { headers: { cookie } })).status).toBe(401);

@@ -13,11 +13,10 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsrs -p tsconfig.build.json && bun --bun vite build web",
-    "typecheck": "tsrs -p tsconfig.json --noEmit && tsrs -p web/tsconfig.json --noEmit && tsrs -p agent/tsconfig.json --noEmit",
-    "test": "bun test test agent",
+    "typecheck": "tsrs -p tsconfig.json --noEmit && tsrs -p web/tsconfig.json --noEmit",
+    "test": "bun test test",
     "start": "bun dist/bin.js",
     "dev": "bun --watch src/bin.ts",
-    "agent": "bun agent/runner.ts",
     "test:browser": "playwright test"
   },
   "dependencies": {

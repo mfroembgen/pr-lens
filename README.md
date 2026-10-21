@@ -7,7 +7,7 @@
 
 <h1 align="center">PR Lens</h1>
 
-This fork adds a self-hosted Bun server with a React/Vite viewer, SQLite persistence, GitLab access checks, and a local coding-agent bridge. [Self-hosting guide](docs/self-hosting.md) · [Helm chart](charts/pr-lens) · [Agent bridge](packages/canvas-local/agent/README.md).
+This fork adds a self-hosted Bun server with a React/Vite viewer, SQLite persistence, optional GitLab access checks, and a VPN-only mode. [Self-hosting guide](docs/self-hosting.md) · [Helm chart](charts/pr-lens).
 
 <p align="center">
   <b>Understand a pull request, any codebase, or software visually, before you read a line of code</b><br>

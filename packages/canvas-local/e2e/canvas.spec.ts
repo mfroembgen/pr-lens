@@ -82,7 +82,7 @@ const publish = async (request: APIRequestContext, canvas: { id: string; writeTo
   expect((await request.put(`${origin}/api/canvas/${canvas.id}/diff`, { headers, data: diff(head) })).status()).toBe(200);
 };
 
-test("permalink supports walkthrough, source diff, questions, answers and crash recovery", async ({ page, request }) => {
+test("permalink supports walkthrough, source diff and crash recovery", async ({ page, request }) => {
   const canvas = await mint(request);
   await publish(request, canvas, "Readiness workflow", 0);
   await page.goto(`${origin}/c/${canvas.id}?rev=1`);
@@ -98,30 +98,18 @@ test("permalink supports walkthrough, source diff, questions, answers and crash 
   await page.getByRole("button", { name: "Source diff", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Changed file" })).toHaveValue("src/routes/health.ts");
   await expect(page.locator(".diff-code")).toContainText("+return true;");
-  await page.getByRole("button", { name: "Questions", exact: true }).click();
-  const question = "Why does this endpoint return true?";
-  await page.getByLabel("Question about this canvas").fill(question);
-  await page.getByRole("button", { name: "Ask", exact: true }).click();
-  await expect(page.getByText("Waiting for your agent", { exact: true })).toBeVisible();
-  const leased = await request.post(`${origin}/api/canvas/${canvas.id}/questions/lease`, { headers: { authorization: `Bearer ${canvas.writeToken}` }, data: {} });
-  expect(leased.status()).toBe(200);
-  const job = z.object({ question: z.object({ id: z.string(), lease: z.string() }) }).parse(await leased.json()).question;
-  const ack = await request.post(`${origin}/api/canvas/${canvas.id}/questions/${job.id}/ack`, {
-    headers: { authorization: `Bearer ${canvas.writeToken}` },
-    data: { lease: job.lease, result: { kind: "answer", question, steps: [{ heading: "Readiness stays stable", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The endpoint reports readiness to its caller." }] }] }] } },
-  });
-  expect(ack.status()).toBe(200);
-  await page.getByRole("button", { name: "Open answer" }).click();
-  await expect(page.getByText("Readiness stays stable", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Questions", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Question about this canvas")).toHaveCount(0);
+  expect((await request.get(`${origin}/api/canvas/${canvas.id}/questions`)).status()).toBe(404);
+  expect((await request.post(`${origin}/api/canvas/${canvas.id}/questions`, { data: { question: "This route was removed" } })).status()).toBe(404);
 
   await stop();
   await start();
   await page.reload();
   await expect(page.locator(".title strong")).toHaveText("Readiness workflow");
-  await page.getByRole("button", { name: "Questions", exact: true }).click();
-  await expect(page.getByText(question, { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Open answer" }).click();
-  await expect(page.getByText("Readiness stays stable", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Source diff", exact: true }).click();
+  await expect(page.locator(".diff-code")).toContainText("+return true;");
+  await expect(page.locator(".commits")).toContainText(headCommit);
 
   await publish(request, canvas, "Newer readiness workflow", 1, "3".repeat(40));
   await page.reload();
@@ -170,7 +158,7 @@ test("device approval requires comparing the terminal code", async ({ page }) =>
 });
 
 
-test("trusted network mode supports anonymous publishing, questions and paired live controls", async ({ page, request }) => {
+test("trusted network mode supports anonymous publishing, source diffs and paired live controls", async ({ page, request }) => {
   await stop();
   await start("none");
   try {
@@ -188,21 +176,14 @@ test("trusted network mode supports anonymous publishing, questions and paired l
     await expect(page.getByLabel("GitLab access token")).toHaveCount(0);
     await page.getByRole("button", { name: "Source diff", exact: true }).click();
     await expect(page.locator(".diff-code")).toContainText("+return true;");
-    await page.getByRole("button", { name: "Questions", exact: true }).click();
-    const question = "Can this canvas answer anonymously?";
-    await page.getByLabel("Question about this canvas").fill(question);
-    await page.getByRole("button", { name: "Ask", exact: true }).click();
-    await expect(page.getByText("Waiting for your agent", { exact: true })).toBeVisible();
-    const lease = await request.post(`${origin}/api/canvas/${canvas.id}/questions/lease`, { data: {} });
-    expect(lease.status()).toBe(200);
-    const job = z.object({ question: z.object({ id: z.string(), lease: z.string() }) }).parse(await lease.json()).question;
-    const result = { kind: "answer", question, steps: [{ heading: "The canvas answers", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The local agent can answer without account credentials." }] }] }] };
-    expect((await request.post(`${origin}/api/canvas/${canvas.id}/questions/${job.id}/ack`, { data: { lease: job.lease, result } })).status()).toBe(200);
-    await page.getByRole("button", { name: "Open answer" }).click();
-    await expect(page.getByText("The canvas answers", { exact: true })).toBeVisible();
-    await page.reload();
-    await page.getByRole("button", { name: "Questions", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Open answer" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Questions", exact: true })).toHaveCount(0);
+    await page.keyboard.press("/");
+    await expect(page.getByLabel("Question about this canvas")).toHaveCount(0);
+    expect((await request.get(`${origin}/api/canvas/${canvas.id}/questions`)).status()).toBe(404);
+    await page.getByRole("button", { name: "Source diff", exact: true }).click();
+    await page.getByRole("button", { name: "Walkthrough", exact: false }).click();
+    await expect(page.locator(".panel .kicker")).toHaveText("Walkthrough");
+    await page.keyboard.press("Escape");
 
     const paired = await request.post(`${origin}/api/canvas/${canvas.id}/live`, { data: {} });
     expect(paired.status()).toBe(200);
@@ -217,8 +198,11 @@ test("trusted network mode supports anonymous publishing, questions and paired l
     await expect(page.locator(".payload h3")).toHaveText(message.message.label);
     await page.getByRole("button", { name: "Fit", exact: true }).click();
     await expect(page.getByRole("button", { name: "Follow agent", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Follow agent", exact: true }).click();
+    const manualAnswer = { kind: "answer", question: "Present the diagram", steps: [{ heading: "Manual updates still arrive", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The diagram follows the manual command after following resumes." }] }] }] };
+    expect((await request.post(`${origin}/api/canvas/${canvas.id}/live/${live.session}`, { data: manualAnswer })).status()).toBe(200);
+    await page.getByRole("button", { name: "Agent sent something · follow", exact: true }).click();
     await expect(page.getByText("● Following agent", { exact: true })).toBeVisible();
+    await expect(page.locator(".panel.answer h3")).toHaveText("Manual updates still arrive");
 
     for (const path of ["/device", "/settings"]) {
       await page.goto(`${origin}${path}`);

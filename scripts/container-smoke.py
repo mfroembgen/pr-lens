@@ -49,6 +49,11 @@ if (input.action === 'publish') {
   const pushed = await fetch(root+'/api/canvas/'+canvas.id, {method:'PUT',
     headers:{...headers,authorization:'Bearer '+canvas.writeToken,'if-match':'0'},body:JSON.stringify(input.document)});
   if (!pushed.ok) throw new Error('Publish failed');
+  for (const method of ['GET','POST']) {
+    const response = await fetch(root+'/api/canvas/'+canvas.id+'/questions', {method,
+      ...(method === 'POST' ? {headers,body:JSON.stringify({question:'Unsupported'})} : {})});
+    if (response.status !== 404) throw new Error('Removed questions endpoint is still available');
+  }
   console.log(JSON.stringify({id:canvas.id}));
 } else if (input.action === 'update') {
   if (process.env.PUBLISH_TOKEN) throw new Error('Open deployment unexpectedly has a publishing secret');
