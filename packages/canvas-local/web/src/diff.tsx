@@ -45,9 +45,13 @@ export const DiffInspector = ({ id, pairing, revision, source, onClose }: {
   const files = useMemo(() => state.kind === "ready" && state.diff ? parseDiff(state.diff.unifiedDiff) : [], [state])
   const file = selected ? files.find((item) => (selected.revision === "base" ? item.oldPath : item.path) === selected.path) : files[0]
   useEffect(() => {
-    const reference = code.current?.querySelector(".referenced")
-    if (reference) reference.scrollIntoView({ block: "center", inline: "nearest" })
-    else code.current?.scrollTo({ top: 0, left: 0 })
+    const element = code.current
+    if (!element) return
+    const reference = element.querySelector(".referenced")
+    if (!reference) { element.scrollTo({ top: 0, left: 0 }); return }
+    const target = reference.getBoundingClientRect()
+    const viewport = element.getBoundingClientRect()
+    element.scrollTo({ top: element.scrollTop + target.top - viewport.top - element.clientTop - (element.clientHeight - target.height) / 2, left: 0 })
   }, [selected, file])
   const body = () => {
     switch (state.kind) {

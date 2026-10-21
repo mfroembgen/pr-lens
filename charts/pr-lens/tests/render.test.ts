@@ -22,7 +22,7 @@ test("keeps SQLite on a retained claim with one restricted writer", () => {
   expect(pod.securityContext.runAsUser).toBe(1000);
   expect(container.securityContext.readOnlyRootFilesystem).toBe(true);
   expect(container.securityContext.allowPrivilegeEscalation).toBe(false);
-  expect(container.image).toBe("ghcr.io/mfroembgen/pr-lens:v0.1.6");
+  expect(container.image).toBe("ghcr.io/mfroembgen/pr-lens:v0.1.7");
   expect(container.env.find((value) => value.name === "DATABASE_PATH").value).toBe("/data/pr-lens.sqlite");
   expect(container.env.find((value) => value.name === "PUBLISH_TOKEN").valueFrom.secretKeyRef.name).toBe("pr-lens");
   expect(pod.volumes.find((value) => value.name === "data").persistentVolumeClaim.claimName).toBe(pvc.metadata.name);

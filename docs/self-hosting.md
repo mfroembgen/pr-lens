@@ -6,7 +6,7 @@ The viewer supports pan and zoom, light and dark themes, walkthroughs, payload i
 
 ## Install with Helm
 
-Image: `ghcr.io/mfroembgen/pr-lens:v0.1.6`. Chart: `oci://ghcr.io/mfroembgen/charts/pr-lens`, version `0.1.6`.
+Image: `ghcr.io/mfroembgen/pr-lens:v0.1.7`. Chart: `oci://ghcr.io/mfroembgen/charts/pr-lens`, version `0.1.7`.
 
 For the default protected mode, create a Secret through your existing secret manager. Its `token` key must contain 64 random hexadecimal characters. Keep the same value across restarts: the server derives its credential-encryption key from it.
 
@@ -26,7 +26,7 @@ ingress:
 
 ```sh
 helm upgrade --install pr-lens oci://ghcr.io/mfroembgen/charts/pr-lens \
-  --version 0.1.6 --namespace pr-lens --create-namespace --values values.yaml
+  --version 0.1.7 --namespace pr-lens --create-namespace --values values.yaml
 ```
 
 The chart runs one nonroot replica with a read-only root filesystem, writable `/tmp`, and a retained PVC. `Recreate` prevents two pods competing for the database. A restart briefly interrupts connections; clients reconnect and saved state remains available.
@@ -86,6 +86,6 @@ mise exec -- bun run test:browser
 
 The workspace pins Bun, tsrs and build tools. Existing upstream assertions remain in place. Added tests cover authorization, SQLite recovery, device grants, immutable revisions and live commands. Browser tests use the real server.
 
-Tagging `v0.1.6` verifies and publishes an amd64/arm64 image and matching OCI chart. Application release CI is separate from local diagram generation and MR updates.
+Tagging `v0.1.7` verifies and publishes an amd64/arm64 image and matching OCI chart. Application release CI is separate from local diagram generation and MR updates.
 
 The initial viewer was adapted from [the MIT community canvas](https://github.com/jasonkneen/pr-lens-with-canvas/tree/8394968c473d2699fbde6ab33f246d9b5aff6441/packages/canvas-local). Copyright and license notices are retained. This is an independent implementation of the public protocol; the upstream hosted application is maintained separately.

@@ -173,6 +173,9 @@ test("source references show visible stacked rows and target the exact file, sid
     const target = row.getBoundingClientRect();
     return element.scrollTop > 0 && target.top >= visible.top && target.bottom <= visible.bottom;
   })).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.scrollingElement?.scrollTop)).toBe(0);
+  await expect(inspector.getByRole("heading", { name: "Source diff", exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(inspector.getByRole("button", { name: "Close source diff" })).toBeInViewport({ ratio: 1 });
   await inspector.getByRole("combobox", { name: "Changed file" }).selectOption("src/other.ts");
   await expect(inspector.locator(".source")).toHaveText("src/other.ts");
   await expect(inspector.locator(".referenced")).toHaveCount(0);
@@ -187,6 +190,9 @@ test("source references show visible stacked rows and target the exact file, sid
   await references.getByRole("button", { name: "src/routes/health.ts:69", exact: true }).click();
   await expect(inspector.locator(".source")).toHaveText("src/routes/health.ts · base lines 69–70");
   await expect(inspector.locator(".referenced > span:last-child")).toHaveText([" context 69", "-return false;"]);
+  await expect.poll(() => page.evaluate(() => document.scrollingElement?.scrollTop)).toBe(0);
+  await expect(inspector.getByRole("heading", { name: "Source diff", exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(inspector.getByRole("button", { name: "Close source diff" })).toBeInViewport({ ratio: 1 });
   await inspector.getByRole("button", { name: "Close source diff" }).click();
   await references.getByRole("button", { name: "a/old name.ts:70", exact: true }).click();
   await expect(inspector.getByRole("combobox", { name: "Changed file" })).toHaveValue("b/new name.ts");
