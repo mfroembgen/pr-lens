@@ -1,8 +1,8 @@
 # PR Lens Helm chart
 
 Run the durable canvas server with one replica and SQLite on a retained PVC.
-The image and chart are released together; chart `0.1.5` uses
-`ghcr.io/mfroembgen/pr-lens:v0.1.5`.
+The image and chart are released together; chart `0.1.6` uses
+`ghcr.io/mfroembgen/pr-lens:v0.1.6`.
 
 For the default protected mode, create a Kubernetes Secret through your secret manager with a `token` key holding
 32 random bytes encoded as 64 lowercase hexadecimal characters. Set
@@ -27,7 +27,7 @@ persistence:
 
 ```bash
 helm upgrade --install pr-lens oci://ghcr.io/mfroembgen/charts/pr-lens \
-  --version 0.1.5 --namespace pr-lens --create-namespace -f values.yaml
+  --version 0.1.6 --namespace pr-lens --create-namespace -f values.yaml
 ```
 
 `publicOrigin` must match the HTTPS viewer origin. With `gitlabOrigin` configured,
@@ -38,7 +38,7 @@ project check, so restrict access at your ingress when using that mode.
 
 For a trusted private network, set `authMode: none`. That mode needs no Secret,
 GitLab sign-in, or canvas credential. Anyone who can reach the endpoint can read,
-change, or delete canvases and answer questions. Restrict its ingress to your
+change, or delete canvases. Restrict its ingress to your
 trusted network. The chart omits `PUBLISH_TOKEN` and `GITLAB_ORIGIN` in this mode.
 The default `authMode: protected` keeps the credential checks described above.
 

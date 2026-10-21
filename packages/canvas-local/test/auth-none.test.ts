@@ -34,7 +34,7 @@ afterAll(async () => {
   for (const dir of directories) await rm(dir, { recursive: true, force: true });
 });
 
-test("trusted-network mode publishes, answers questions and relays live commands without credentials", async () => {
+test("trusted-network mode publishes and relays live commands without credentials", async () => {
   const api = await start();
   expect((await request(api, "GET", "/api/access")).json).toEqual({ auth: "none", publisherRequired: false, accounts: false });
   const minted = await request(api, "POST", "/api/canvas");
@@ -48,20 +48,16 @@ test("trusted-network mode publishes, answers questions and relays live commands
   const diff = { baseCommit: graph.provenance.base.sha, headCommit: graph.provenance.head.sha, unifiedDiff: "diff --git a/file b/file\n" };
   expect((await request(api, "PUT", `${path}/diff`, diff)).status).toBe(200);
   expect((await request(api, "GET", `${path}/diff`)).json).toEqual(diff);
-  const question = { id: mintToken(), question: "What changed?" };
-  expect((await request(api, "POST", `${path}/questions`, question)).status).toBe(201);
-  const leased = z.object({ question: z.object({ id: z.string(), lease: z.string() }) }).parse((await request(api, "POST", `${path}/questions/lease`, {})).json).question;
-  expect((await request(api, "POST", `${path}/questions/${leased.id}/renew`, { lease: leased.lease })).status).toBe(200);
-  const result = { kind: "answer", question: question.question, steps: [{ heading: "The route changes", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The readiness response changes." }] }] }] };
-  expect((await request(api, "POST", `${path}/questions/${leased.id}/ack`, { lease: mintToken(), result })).status).toBe(404);
-  expect((await request(api, "POST", `${path}/questions/${leased.id}/ack`, { lease: leased.lease, result })).status).toBe(200);
-  expect((await request(api, "GET", `${path}/questions`)).json).toMatchObject({ questions: [{ id: question.id, status: "completed" }] });
   const live = z.object({ session: z.string(), url: z.string() }).parse((await request(api, "POST", `${path}/live`)).json);
   const secret = new URL(live.url).hash.split(".")[1];
   expect(secret).toBeDefined();
   expect((await request(api, "POST", `${path}/live/${live.session}`, { kind: "show", focus: { kind: "all" } })).status).toBe(200);
   expect((await request(api, "GET", `${path}/live/${live.session}`)).status).toBe(404);
   expect((await request(api, "GET", `${path}/live/${live.session}`, undefined, { authorization: `Bearer ${secret}` })).json).toMatchObject({ events: [{ event: { kind: "command", command: { kind: "show" } } }] });
+  expect((await request(api, "GET", `${path}/questions`)).status).toBe(404);
+  expect((await request(api, "GET", `${path}/live/${live.session}/questions`, undefined, { authorization: `Bearer ${secret}` })).status).toBe(404);
+  const removed = ["questions", "questions/lease", "lease", ...["lease", "renew", "ack", "fail"].map((operation) => `questions/${mintToken()}/${operation}`), `live/${live.session}/questions`, `live/${live.session}/questions/lease`];
+  for (const suffix of removed) expect((await request(api, "POST", `${path}/${suffix}`, {})).status).toBe(404);
   expect((await request(api, "GET", "/api/auth/me")).status).toBe(404);
   expect((await request(api, "POST", "/api/device/code", {})).status).toBe(404);
   expect((await request(api, "DELETE", path)).status).toBe(200);

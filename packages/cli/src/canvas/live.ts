@@ -163,7 +163,7 @@ const tellTab = (tab: TabState, after: Afterword, terminal: Terminal): void => {
     case "stepped_out":
       switch (after) {
         case "answer":
-          terminal.out("  the reader stepped out of agent mode, so the answer is waiting in their Questions list");
+          terminal.out("  the reader stepped out of agent mode; resume following to see the latest update");
           return;
         case "show":
           terminal.out("  the reader stepped out of agent mode, so their canvas did not move");

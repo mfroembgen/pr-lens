@@ -18,7 +18,7 @@ An explicit `AUTH_MODE=none` trusts network access. No publishing, GitLab, accou
 or canvas bearer credential is checked. `/api/access` returns `auth: "none"` and
 `publisherRequired: false`. IDs and returned write tokens retain their protocol
 shape for existing CLI clients; write tokens do not restrict access in this mode.
-Revisions, source validation, live pairing and question leases still apply.
+Revisions, source validation and live pairing still apply.
 
 ## Version
 

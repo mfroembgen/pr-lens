@@ -139,7 +139,7 @@ test("an answer that checks out is sent, and says where the reader is", async ()
   expect(live.sent).toMatchObject([{ kind: "answer", ...answer({ kind: "component", id: "send-broadcast-bulk" }) }]);
   expect(output.out).toEqual([
     `✓ answered on ${FIRST} in 1 step`,
-    "  the reader stepped out of agent mode, so the answer is waiting in their Questions list",
+    "  the reader stepped out of agent mode; resume following to see the latest update",
   ]);
 });
 

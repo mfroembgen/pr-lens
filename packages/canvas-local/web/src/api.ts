@@ -22,14 +22,6 @@ const EventSchema = z.discriminatedUnion("kind", [
 ])
 const PairingSchema = z.object({ session: z.string().regex(/^[A-Za-z0-9_-]{22}$/), secret: z.string().regex(/^[A-Za-z0-9_-]{22}$/) })
 const StoredPairing = PairingSchema.extend({ seen: z.int().min(0).default(0) })
-const QuestionBase = z.object({ id: z.string(), question: z.string(), createdAt: z.string() })
-const QuestionFailure = z.enum(["HEAD_MISMATCH", "AGENT_FAILED", "INVALID_ANSWER", "AGENT_TIMEOUT"])
-const QuestionSchema = z.discriminatedUnion("status", [
-  QuestionBase.extend({ status: z.literal("pending") }),
-  QuestionBase.extend({ status: z.literal("leased") }),
-  QuestionBase.extend({ status: z.literal("completed"), result: LiveCommand }),
-  QuestionBase.extend({ status: z.literal("failed"), error: QuestionFailure }),
-])
 export const DiffSchema = z.object({ baseCommit: z.string().regex(/^[a-f0-9]{40}$/), headCommit: z.string().regex(/^[a-f0-9]{40}$/), unifiedDiff: z.string() })
 const AccessSchema = z.object({ auth: z.enum(["none", "gitlab", "capability"]), gitlabOrigin: z.string().optional(), publisherRequired: z.boolean(), accounts: z.boolean() })
 const UserSchema = z.object({ id: z.number(), name: z.string(), username: z.string() })
@@ -39,7 +31,6 @@ export type DrawnTile = z.infer<typeof Tile>
 export type Sketch = z.infer<typeof SketchSchema>
 export type LiveEvent = z.infer<typeof EventSchema>
 export type Pairing = z.infer<typeof PairingSchema>
-export type Question = z.infer<typeof QuestionSchema>
 export type Diff = z.infer<typeof DiffSchema>
 export type Access = z.infer<typeof AccessSchema>
 export type User = z.infer<typeof UserSchema>
@@ -122,14 +113,6 @@ export const reportLook = async (id: string, pairing: Pairing, look: ViewerLook)
     method: "POST", headers: { ...auth(pairing), "content-type": "application/json" }, body: JSON.stringify(look),
   }).catch(() => undefined)
 }
-export const readQuestions = async (id: string, revision?: number): Promise<Question[]> =>
-  z.object({ questions: z.array(QuestionSchema) }).parse(await request(atRevision(`/api/canvas/${id}/questions`, revision))).questions
-export const askQuestion = async (id: string, question: string, questionId: string, look?: ViewerLook, revision?: number): Promise<void> => {
-  await request(atRevision(`/api/canvas/${id}/questions`, revision), {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: questionId, question, look }),
-  })
-}
-export const questionId = (): string => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
 export const fetchDiff = async (id: string, pairing?: Pairing, revision?: number): Promise<Diff | undefined> => {
   try { return DiffSchema.parse(await request(atRevision(`/api/canvas/${id}/diff`, revision), pairing === undefined ? {} : { headers: auth(pairing) })) }
   catch (error) { if (error instanceof ApiError && error.status === 404) return undefined; throw error }

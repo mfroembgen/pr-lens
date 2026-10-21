@@ -111,6 +111,6 @@ Quality software is built on types the compiler can enforce. These are non-negot
 
 # Repo specifics
 
-- Bun monorepo with pinned tools in `mise.toml`: `packages/schema` (the contract — everything else consumes it), `packages/renderer` (pure function, no I/O), `packages/cli`, `packages/action`, `packages/agent-skill`, and `packages/canvas-local` (server, viewer and local bridge). Use tsrs for compilation and type checking. MIT © Coldtea AI.
+- Bun monorepo with pinned tools in `mise.toml`: `packages/schema` (the contract — everything else consumes it), `packages/renderer` (pure function, no I/O), `packages/cli`, `packages/action`, `packages/agent-skill`, and `packages/canvas-local` (server and viewer). Use tsrs for compilation and type checking. MIT © Coldtea AI.
 - The renderer must be deterministic: same graph in → byte-identical SVG out. Treat any nondeterminism (object iteration order, Date, random) as a bug.
 - Rendered SVGs must remain GitHub-safe: SMIL/CSS animation only, no scripts, no external resources, self-contained.

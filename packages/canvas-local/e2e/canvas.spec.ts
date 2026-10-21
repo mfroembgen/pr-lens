@@ -82,7 +82,7 @@ const publish = async (request: APIRequestContext, canvas: { id: string; writeTo
   expect((await request.put(`${origin}/api/canvas/${canvas.id}/diff`, { headers, data: diff(head) })).status()).toBe(200);
 };
 
-test("permalink supports walkthrough, source diff, questions, answers and crash recovery", async ({ page, request }) => {
+test("permalink supports walkthrough, source diff and crash recovery", async ({ page, request }) => {
   const canvas = await mint(request);
   await publish(request, canvas, "Readiness workflow", 0);
   await page.goto(`${origin}/c/${canvas.id}?rev=1`);
@@ -98,30 +98,18 @@ test("permalink supports walkthrough, source diff, questions, answers and crash 
   await page.getByRole("button", { name: "Source diff", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Changed file" })).toHaveValue("src/routes/health.ts");
   await expect(page.locator(".diff-code")).toContainText("+return true;");
-  await page.getByRole("button", { name: "Questions", exact: true }).click();
-  const question = "Why does this endpoint return true?";
-  await page.getByLabel("Question about this canvas").fill(question);
-  await page.getByRole("button", { name: "Ask", exact: true }).click();
-  await expect(page.getByText("Waiting for your agent", { exact: true })).toBeVisible();
-  const leased = await request.post(`${origin}/api/canvas/${canvas.id}/questions/lease`, { headers: { authorization: `Bearer ${canvas.writeToken}` }, data: {} });
-  expect(leased.status()).toBe(200);
-  const job = z.object({ question: z.object({ id: z.string(), lease: z.string() }) }).parse(await leased.json()).question;
-  const ack = await request.post(`${origin}/api/canvas/${canvas.id}/questions/${job.id}/ack`, {
-    headers: { authorization: `Bearer ${canvas.writeToken}` },
-    data: { lease: job.lease, result: { kind: "answer", question, steps: [{ heading: "Readiness stays stable", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The endpoint reports readiness to its caller." }] }] }] } },
-  });
-  expect(ack.status()).toBe(200);
-  await page.getByRole("button", { name: "Open answer" }).click();
-  await expect(page.getByText("Readiness stays stable", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Questions", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Question about this canvas")).toHaveCount(0);
+  expect((await request.get(`${origin}/api/canvas/${canvas.id}/questions`)).status()).toBe(404);
+  expect((await request.post(`${origin}/api/canvas/${canvas.id}/questions`, { data: { question: "This route was removed" } })).status()).toBe(404);
 
   await stop();
   await start();
   await page.reload();
   await expect(page.locator(".title strong")).toHaveText("Readiness workflow");
-  await page.getByRole("button", { name: "Questions", exact: true }).click();
-  await expect(page.getByText(question, { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Open answer" }).click();
-  await expect(page.getByText("Readiness stays stable", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Source diff", exact: true }).click();
+  await expect(page.locator(".diff-code")).toContainText("+return true;");
+  await expect(page.locator(".commits")).toContainText(headCommit);
 
   await publish(request, canvas, "Newer readiness workflow", 1, "3".repeat(40));
   await page.reload();
@@ -131,6 +119,83 @@ test("permalink supports walkthrough, source diff, questions, answers and crash 
   await page.goto(`${origin}/c/${canvas.id}`);
   await expect(page.locator(".title strong")).toHaveText("Newer readiness workflow");
   if (process.env.PR_LENS_TEST_SCREENSHOT) await page.screenshot({ path: process.env.PR_LENS_TEST_SCREENSHOT });
+});
+
+test("source references show visible stacked rows and target the exact file, side and line range", async ({ page, request }) => {
+  await page.setViewportSize({ width: 772, height: 885 });
+  const canvas = await mint(request);
+  const graph = GraphDoc.parse({
+    ...document("Source reference inspection"),
+    provenance: { ...document("Source reference inspection").provenance, repo: { owner: "example/platform/subgroup", name: "service", host: "gitlab.example.com" } },
+    nodes: minimal.nodes.map((node) => ({ ...node, files: [
+      { path: "src/routes/health.ts", startLine: 70, endLine: 71, revision: "head" },
+      { path: "src/routes/health.ts", startLine: 69, endLine: 70, revision: "base" },
+      { path: "src/routes/health.ts", startLine: 250 },
+      { path: "a/old name.ts", startLine: 70, revision: "base" },
+    ] })),
+  });
+  const patch = [
+    "diff --git a/src/routes/health.ts b/src/routes/health.ts", "--- a/src/routes/health.ts", "+++ b/src/routes/health.ts", "@@ -1,90 +1,91 @@",
+    ...Array.from({ length: 69 }, (_, index) => ` context ${index + 1}`), "-return false;", "+return true;", "+return details;",
+    ...Array.from({ length: 20 }, (_, index) => ` context ${index + 71}`),
+    "diff --git a/src/other.ts b/src/other.ts", "--- a/src/other.ts", "+++ b/src/other.ts", "@@ -1,90 +1,90 @@",
+    ...Array.from({ length: 69 }, (_, index) => ` other context ${index + 1}`), "-unrelated old;", "+unrelated new;",
+    ...Array.from({ length: 20 }, (_, index) => ` other context ${index + 71}`),
+    "diff --git a/a/old name.ts b/b/new name.ts", "similarity index 50%", "rename from a/old name.ts", "rename to b/new name.ts",
+    "--- a/a/old name.ts", "+++ b/b/new name.ts", "@@ -70 +70 @@", "-renamed old;", "+renamed new;",
+    "diff --git a/assets/a b.bin b/assets/a b.bin", "index ab99c53..c984a04 100644", "Binary files a/assets/a b.bin and b/assets/a b.bin differ", "",
+  ].join("\n");
+  const headers = { authorization: `Bearer ${canvas.writeToken}`, "X-PR-Lens-Publish-Token": publishing, "if-match": "0" };
+  expect((await request.put(`${origin}/api/canvas/${canvas.id}`, { headers, data: graph })).status()).toBe(200);
+  expect((await request.put(`${origin}/api/canvas/${canvas.id}/diff`, { headers, data: { baseCommit, headCommit, unifiedDiff: patch } })).status()).toBe(200);
+  await page.goto(`${origin}/c/${canvas.id}?rev=1`);
+  await page.locator(".picture").getByText("GET /health", { exact: true }).click();
+  const references = page.getByRole("complementary", { name: "Selected source files" });
+  await references.getByRole("button", { name: "src/routes/health.ts:70", exact: true }).click();
+  const inspector = page.getByRole("complementary", { name: "Source diff" });
+  // The pre has its own scroll area; DOM text alone missed the former one-row layout.
+  const geometry = await page.locator(".diff-code").evaluate((element) => {
+    const first = element.querySelector(".diff-line");
+    const second = first?.nextElementSibling;
+    if (!first || !second) throw new Error("Diff rows are missing");
+    return { height: element.clientHeight, content: element.scrollHeight, step: second.getBoundingClientRect().top - first.getBoundingClientRect().top };
+  });
+  expect(geometry.height).toBeGreaterThan(250);
+  expect(geometry.content).toBeGreaterThan(geometry.height);
+  expect(geometry.step).toBeGreaterThan(19);
+  await expect(inspector.locator(".commits dd")).toHaveText([baseCommit, headCommit]);
+  await expect(inspector.locator(".source")).toHaveText("src/routes/health.ts · head lines 70–71");
+  await expect(inspector.locator(".referenced > span:last-child")).toHaveText(["+return true;", "+return details;"]);
+  await expect.poll(() => page.locator(".diff-code").evaluate((element) => {
+    const row = element.querySelector(".referenced");
+    if (!row) return false;
+    const visible = element.getBoundingClientRect();
+    const target = row.getBoundingClientRect();
+    return element.scrollTop > 0 && target.top >= visible.top && target.bottom <= visible.bottom;
+  })).toBe(true);
+  await inspector.getByRole("combobox", { name: "Changed file" }).selectOption("src/other.ts");
+  await expect(inspector.locator(".source")).toHaveText("src/other.ts");
+  await expect(inspector.locator(".referenced")).toHaveCount(0);
+  await expect(inspector.locator(".diff-code")).toContainText("+unrelated new;");
+  await expect.poll(() => inspector.locator(".diff-code").evaluate((element) => element.scrollTop)).toBe(0);
+  expect(await inspector.locator(".diff-code").evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await inspector.getByRole("combobox", { name: "Changed file" }).selectOption("assets/a b.bin");
+  await expect(inspector.locator(".source")).toHaveText("assets/a b.bin");
+  await expect(inspector.locator(".diff-code")).toContainText("Binary files a/assets/a b.bin and b/assets/a b.bin differ");
+
+  await inspector.getByRole("button", { name: "Close source diff" }).click();
+  await references.getByRole("button", { name: "src/routes/health.ts:69", exact: true }).click();
+  await expect(inspector.locator(".source")).toHaveText("src/routes/health.ts · base lines 69–70");
+  await expect(inspector.locator(".referenced > span:last-child")).toHaveText([" context 69", "-return false;"]);
+  await inspector.getByRole("button", { name: "Close source diff" }).click();
+  await references.getByRole("button", { name: "a/old name.ts:70", exact: true }).click();
+  await expect(inspector.getByRole("combobox", { name: "Changed file" })).toHaveValue("b/new name.ts");
+  await expect(inspector.locator(".source")).toHaveText("a/old name.ts · base line 70");
+  await expect(inspector.locator(".referenced > span:last-child")).toHaveText(["-renamed old;"]);
+  await inspector.getByRole("button", { name: "Close source diff" }).click();
+  await references.getByRole("button", { name: "src/routes/health.ts:250", exact: true }).click();
+  await expect(inspector.getByText("The referenced lines are outside the text shown in this diff.", { exact: true })).toBeVisible();
+  await expect(inspector.locator(".referenced")).toHaveCount(0);
 });
 
 test("paired live commands open real payload details", async ({ page, request }) => {
@@ -170,7 +235,7 @@ test("device approval requires comparing the terminal code", async ({ page }) =>
 });
 
 
-test("trusted network mode supports anonymous publishing, questions and paired live controls", async ({ page, request }) => {
+test("trusted network mode supports anonymous publishing, source diffs and paired live controls", async ({ page, request }) => {
   await stop();
   await start("none");
   try {
@@ -188,21 +253,14 @@ test("trusted network mode supports anonymous publishing, questions and paired l
     await expect(page.getByLabel("GitLab access token")).toHaveCount(0);
     await page.getByRole("button", { name: "Source diff", exact: true }).click();
     await expect(page.locator(".diff-code")).toContainText("+return true;");
-    await page.getByRole("button", { name: "Questions", exact: true }).click();
-    const question = "Can this canvas answer anonymously?";
-    await page.getByLabel("Question about this canvas").fill(question);
-    await page.getByRole("button", { name: "Ask", exact: true }).click();
-    await expect(page.getByText("Waiting for your agent", { exact: true })).toBeVisible();
-    const lease = await request.post(`${origin}/api/canvas/${canvas.id}/questions/lease`, { data: {} });
-    expect(lease.status()).toBe(200);
-    const job = z.object({ question: z.object({ id: z.string(), lease: z.string() }) }).parse(await lease.json()).question;
-    const result = { kind: "answer", question, steps: [{ heading: "The canvas answers", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The local agent can answer without account credentials." }] }] }] };
-    expect((await request.post(`${origin}/api/canvas/${canvas.id}/questions/${job.id}/ack`, { data: { lease: job.lease, result } })).status()).toBe(200);
-    await page.getByRole("button", { name: "Open answer" }).click();
-    await expect(page.getByText("The canvas answers", { exact: true })).toBeVisible();
-    await page.reload();
-    await page.getByRole("button", { name: "Questions", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Open answer" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Questions", exact: true })).toHaveCount(0);
+    await page.keyboard.press("/");
+    await expect(page.getByLabel("Question about this canvas")).toHaveCount(0);
+    expect((await request.get(`${origin}/api/canvas/${canvas.id}/questions`)).status()).toBe(404);
+    await page.getByRole("button", { name: "Source diff", exact: true }).click();
+    await page.getByRole("button", { name: "Walkthrough", exact: false }).click();
+    await expect(page.locator(".panel .kicker")).toHaveText("Walkthrough");
+    await page.keyboard.press("Escape");
 
     const paired = await request.post(`${origin}/api/canvas/${canvas.id}/live`, { data: {} });
     expect(paired.status()).toBe(200);
@@ -217,8 +275,11 @@ test("trusted network mode supports anonymous publishing, questions and paired l
     await expect(page.locator(".payload h3")).toHaveText(message.message.label);
     await page.getByRole("button", { name: "Fit", exact: true }).click();
     await expect(page.getByRole("button", { name: "Follow agent", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Follow agent", exact: true }).click();
+    const manualAnswer = { kind: "answer", question: "Present the diagram", steps: [{ heading: "Manual updates still arrive", focus: { kind: "all" }, paragraphs: [{ parts: [{ text: "The diagram follows the manual command after following resumes." }] }] }] };
+    expect((await request.post(`${origin}/api/canvas/${canvas.id}/live/${live.session}`, { data: manualAnswer })).status()).toBe(200);
+    await page.getByRole("button", { name: "Agent sent something · follow", exact: true }).click();
     await expect(page.getByText("● Following agent", { exact: true })).toBeVisible();
+    await expect(page.locator(".panel.answer h3")).toHaveText("Manual updates still arrive");
 
     for (const path of ["/device", "/settings"]) {
       await page.goto(`${origin}${path}`);

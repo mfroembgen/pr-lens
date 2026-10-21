@@ -42,7 +42,6 @@ import { useTween } from "./tween"
 import { AnswerPanel, StepPanel } from "./panels"
 import { PayloadPanel } from "./payload"
 import { SignIn } from "./access"
-import { Questions } from "./questions"
 import { DiffInspector, sourceRefs } from "./diff"
 
 type ThemeChoice = "system" | "light" | "dark"
@@ -82,7 +81,7 @@ export const App = () => {
   const [user, setUser] = useState<User>()
   const [needsLogin, setNeedsLogin] = useState(false)
   const [authRevision, setAuthRevision] = useState(0)
-  const [rail, setRail] = useState<"questions" | "diff">()
+  const [diffOpen, setDiffOpen] = useState(false)
   const [source, setSource] = useState<FileRef>()
   const [liveOffline, setLiveOffline] = useState(false)
   const [error, setError] = useState<string>()
@@ -354,9 +353,6 @@ export const App = () => {
       if (event.metaKey || event.ctrlKey || event.altKey || (event.target instanceof HTMLElement && (event.target.matches("input, textarea, select") || event.target.isContentEditable))) return
       const middle = { x: viewport.width / 2, y: viewport.height / 2 }
       switch (event.key) {
-        case "/":
-          event.preventDefault()
-          return setRail("questions")
         case "w":
         case "W":
           return toggleWalkthrough()
@@ -376,7 +372,7 @@ export const App = () => {
           if (mode.kind !== "default") step(-1)
           return
         case "Escape":
-          if (rail !== undefined) return setRail(undefined)
+          if (diffOpen) return setDiffOpen(false)
           setScope(null)
           if (openMessage !== undefined) return setOpenMessage(undefined)
           return leaveMode()
@@ -391,7 +387,7 @@ export const App = () => {
     }
     window.addEventListener("keydown", key)
     return () => window.removeEventListener("keydown", key)
-  }, [toggleWalkthrough, fitAll, cycleTheme, step, leaveMode, mode, glide, camera, viewport, stepOut, openMessage, rail])
+  }, [toggleWalkthrough, fitAll, cycleTheme, step, leaveMode, mode, glide, camera, viewport, stepOut, openMessage, diffOpen])
 
   const toWorld = (clientX: number, clientY: number) => ({ x: (clientX - camera.x) / camera.scale, y: (clientY - camera.y) / camera.scale })
 
@@ -461,7 +457,7 @@ export const App = () => {
 
   const selectedPlaces = scope === null ? [] : scope.kind === "place" ? [scope.place] : scope.places
   const sources = page === undefined ? [] : sourceRefs(page.document, selectedPlaces)
-  const openSource = (ref: FileRef) => { setSource(ref); setOpenMessage(undefined); setRail("diff") }
+  const openSource = (ref: FileRef) => { setSource(ref); setOpenMessage(undefined); setDiffOpen(true) }
 
   if (needsLogin) return <div className={`app ${theme}`}><SignIn access={access} onLogin={(signedIn) => { setUser(signedIn); setNeedsLogin(false); setAuthRevision((now) => now + 1) }} /></div>
   if (error !== undefined)
@@ -521,8 +517,7 @@ export const App = () => {
         <div className="tools">
           {user && <a className="settings-link" href="/settings">Machines</a>}
           {user && <button title={`Signed in as ${user.username}`} onClick={() => { void logout().then(() => { setUser(undefined); setPage(undefined); setNeedsLogin(true) }) }}>Sign out</button>}
-          <button onClick={() => setRail((now) => now === "questions" ? undefined : "questions")} title="Questions (/)">Questions</button>
-          <button onClick={() => { setSource(undefined); setOpenMessage(undefined); setRail((now) => now === "diff" ? undefined : "diff") }}>Source diff</button>
+          <button onClick={() => { setSource(undefined); setOpenMessage(undefined); setDiffOpen((now) => !now) }}>Source diff</button>
           {liveOffline && <span className="live ended" role="status">Offline · reconnecting</span>}
           {pairing !== undefined && (
             liveEnded ? (
@@ -548,10 +543,9 @@ export const App = () => {
         </div>
       </header>
 
-      {rail === "questions" && id !== undefined && <Questions id={id} revision={page.rev} look={look} onCommand={(command) => { apply(command); setRail(undefined) }} onClose={() => setRail(undefined)} />}
-      {rail === "diff" && id !== undefined && <DiffInspector id={id} pairing={pairing} revision={page.rev} source={source} onClose={() => setRail(undefined)} />}
-      {sources.length > 0 && rail === undefined && <aside className="source-links" aria-label="Selected source files"><strong>Source</strong>{sources.map((ref, index) => <button key={index} onClick={() => openSource(ref)}>{ref.path}{ref.startLine && `:${ref.startLine}`}</button>)}</aside>}
-      {openMessage !== undefined && rail === undefined && (
+      {diffOpen && id !== undefined && <DiffInspector id={id} pairing={pairing} revision={page.rev} source={source} onClose={() => setDiffOpen(false)} />}
+      {sources.length > 0 && !diffOpen && <aside className="source-links" aria-label="Selected source files"><strong>Source</strong>{sources.map((ref, index) => <button key={index} onClick={() => openSource(ref)}>{ref.path}{ref.startLine && `:${ref.startLine}`}</button>)}</aside>}
+      {openMessage !== undefined && !diffOpen && (
         <PayloadPanel key={openMessage} doc={page.document} id={openMessage} onClose={() => setOpenMessage(undefined)} />
       )}
       {mode.kind === "walkthrough" && page.document.walkthrough !== undefined && (

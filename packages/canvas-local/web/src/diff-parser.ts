@@ -1,8 +1,8 @@
 export type DiffLine = { kind: "added" | "removed" | "context" | "meta"; text: string; base?: number; head?: number }
 export type DiffFile = { path: string; oldPath: string; lines: DiffLine[] }
-const headerPath = (value: string): string => {
+const headerPath = (value: string, prefixed = true): string => {
   const raw = value.split("\t")[0] ?? value
-  if (!raw.startsWith('"') || !raw.endsWith('"')) return raw.replace(/^[ab]\//, "")
+  if (!raw.startsWith('"') || !raw.endsWith('"')) return prefixed ? raw.replace(/^[ab]\//, "") : raw
   const chars = Array.from(raw.slice(1, -1))
   const bytes: number[] = []
   const encoder = new TextEncoder()
@@ -16,7 +16,8 @@ const headerPath = (value: string): string => {
     const next = chars[++index]
     if (next !== undefined) bytes.push(...encoder.encode(escapes[next] ?? next))
   }
-  return new TextDecoder().decode(Uint8Array.from(bytes)).replace(/^[ab]\//, "")
+  const decoded = new TextDecoder().decode(Uint8Array.from(bytes))
+  return prefixed ? decoded.replace(/^[ab]\//, "") : decoded
 }
 export const parseDiff = (text: string): DiffFile[] => {
   const files: DiffFile[] = []
@@ -27,10 +28,13 @@ export const parseDiff = (text: string): DiffFile[] => {
   for (const line of text.split("\n")) {
     if (line.startsWith("diff --git ")) {
       const paths = /^diff --git ("(?:[^"\\]|\\.)*"|\S+) ("(?:[^"\\]|\\.)*"|.+)$/.exec(line)
-      file = { path: headerPath(paths?.[2] ?? "Unknown file"), oldPath: headerPath(paths?.[1] ?? "Unknown file"), lines: [] }
+      const samePath = /^diff --git a\/(.+) b\/\1$/.exec(line)?.[1]
+      file = { path: samePath ?? headerPath(paths?.[2] ?? "Unknown file"), oldPath: samePath ?? headerPath(paths?.[1] ?? "Unknown file"), lines: [] }
       files.push(file); hunk = false
     }
     if (file === undefined) continue
+    if (!hunk && /^(rename|copy) from /.test(line)) file.oldPath = headerPath(line.replace(/^(rename|copy) from /, ""), false)
+    if (!hunk && /^(rename|copy) to /.test(line)) file.path = headerPath(line.replace(/^(rename|copy) to /, ""), false)
     if (!hunk && line.startsWith("--- ")) file.oldPath = headerPath(line.slice(4))
     if (!hunk && line.startsWith("+++ ")) {
       const path = headerPath(line.slice(4))
