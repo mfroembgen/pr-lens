@@ -44,7 +44,7 @@ type Env = Record<string, string | undefined>;
 /** A writer sends its push credential; a reader sends its session key. */
 type Driver = "writer" | "reader";
 
-type Paired = { target: Registered; api: string; token: string; session: string; driver: Driver };
+type Paired = { target: Registered; api: string; token: string | undefined; session: string; driver: Driver };
 
 /**
  * The canvas a live command means: the one named, else the only one in the

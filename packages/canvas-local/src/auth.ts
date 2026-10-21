@@ -13,7 +13,9 @@ const Project = z.object({
   }),
 });
 type Identity = { owner: string; token: string; user: z.infer<typeof User> };
-export type AuthOptions = { publishToken: string; publicOrigin?: string; gitlabOrigin?: string; accountToken?: string };
+export const AuthMode = z.enum(["protected", "none"]);
+export type AuthMode = z.infer<typeof AuthMode>;
+export type AuthOptions = { authMode?: AuthMode; publishToken?: string; publicOrigin?: string; gitlabOrigin?: string; accountToken?: string };
 export const bearer = (request: IncomingMessage): string | undefined => {
   const header = request.headers.authorization;
   return header?.startsWith("Bearer ") ? header.slice(7).trim() : undefined;
@@ -26,14 +28,16 @@ const cookieId = (request: IncomingMessage): string | undefined =>
   header(request, "cookie")?.split(";").map((value) => value.trim()).find((value) => value.startsWith("pr_lens_session="))?.slice(16);
 
 export const createAuth = (options: AuthOptions, store: Store) => {
-  if (!/^[a-fA-F0-9]{64}$/.test(options.publishToken)) throw new Error("PUBLISH_TOKEN must be exactly 64 hexadecimal characters");
+  const open = options.authMode === "none";
+  const publishToken = options.publishToken ?? "";
+  if (!open && !/^[a-fA-F0-9]{64}$/.test(publishToken)) throw new Error("PUBLISH_TOKEN must be exactly 64 hexadecimal characters");
   const configuredOrigin = options.publicOrigin === undefined ? undefined : new URL(options.publicOrigin).origin;
-  const gitlab = options.gitlabOrigin === undefined ? undefined : new URL(options.gitlabOrigin);
+  const gitlab = open || options.gitlabOrigin === undefined ? undefined : new URL(options.gitlabOrigin);
   if (gitlab !== undefined && (gitlab.username || gitlab.password || gitlab.pathname !== "/" || gitlab.search || gitlab.hash ||
     (gitlab.protocol !== "https:" && !(gitlab.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(gitlab.hostname)))))
     throw new Error("GITLAB_ORIGIN must be an HTTPS origin, or HTTP localhost for development");
-  const key = Buffer.from(hashToken(options.publishToken), "hex");
-  const publisherHash = hashToken(options.publishToken);
+  const key = Buffer.from(hashToken(publishToken), "hex");
+  const publisherHash = hashToken(publishToken);
   const identities = new WeakMap<IncomingMessage, Promise<Identity | undefined>>();
   const origin = (request: IncomingMessage) => configuredOrigin ?? `http://${request.headers.host ?? "localhost"}`;
   const encrypt = (token: string): string => {
@@ -102,6 +106,7 @@ export const createAuth = (options: AuthOptions, store: Store) => {
     return pending;
   };
   const account = async (request: IncomingMessage): Promise<string | undefined> => {
+    if (open) return undefined;
     if (options.accountToken !== undefined && tokenMatches(bearer(request), hashToken(options.accountToken))) return "configured-account";
     const owner = (await identity(request))?.owner;
     if (owner === undefined && bearer(request)?.startsWith("prl_u_")) throw new Refusal(401, "UNAUTHENTICATED", "That account credential is not valid");
@@ -125,14 +130,15 @@ export const createAuth = (options: AuthOptions, store: Store) => {
   };
   const csrf = (request: IncomingMessage) => {
     const sent = header(request, "origin");
-    if ((sent !== undefined && sent !== origin(request)) || (cookieId(request) !== undefined && sent === undefined))
+    if ((sent !== undefined && sent !== origin(request)) || (!open && cookieId(request) !== undefined && sent === undefined))
       throw new Refusal(403, "NOT_OWNER", "Open this page from the canvas server");
   };
   const publisher = (request: IncomingMessage) => {
-    if (!tokenMatches(header(request, "x-pr-lens-publish-token"), publisherHash))
+    if (!open && !tokenMatches(header(request, "x-pr-lens-publish-token"), publisherHash))
       throw new Refusal(401, "UNAUTHENTICATED", "A publisher credential is required");
   };
   const login = async (request: IncomingMessage, token: string) => {
+    if (open) throw notFound();
     csrf(request);
     if (header(request, "origin") === undefined) throw new Refusal(403, "NOT_OWNER", "Sign in from the canvas page");
     const user = User.safeParse(await gitlabRequest("/user", token));
@@ -147,5 +153,5 @@ export const createAuth = (options: AuthOptions, store: Store) => {
     if (id !== undefined) store.removeAuthSession(hashToken(id));
     return "pr_lens_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0";
   };
-  return { origin, publisher, identity, account, requireAccount, project, csrf, login, logout, gitlabOrigin: gitlab?.origin, accounts: gitlab !== undefined || options.accountToken !== undefined, seal: encrypt };
+  return { open, origin, publisher, identity, account, requireAccount, project, csrf, login, logout, gitlabOrigin: gitlab?.origin, accounts: !open && (gitlab !== undefined || options.accountToken !== undefined), seal: encrypt };
 };

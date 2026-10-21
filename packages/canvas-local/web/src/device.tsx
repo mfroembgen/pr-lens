@@ -13,8 +13,10 @@ export const DevicePage = () => {
   const [busy, setBusy] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
   useEffect(() => {
-    void fetchAccess().then(setAccess).catch(() => undefined)
-    void fetchUser().then((user) => setSession({ kind: "signed-in", user }), () => setSession({ kind: "signed-out" }))
+    void fetchAccess().then((config) => {
+      setAccess(config)
+      if (config.accounts) void fetchUser().then((user) => setSession({ kind: "signed-in", user }), () => setSession({ kind: "signed-out" }))
+    }).catch(() => setSession({ kind: "signed-out" }))
   }, [])
   const find = async (value: string) => {
     setError(undefined); setBusy(true); setConfirmed(false)
@@ -52,6 +54,7 @@ export const DevicePage = () => {
     }
   }
   const body = () => {
+    if (access?.accounts === false) return <main className="access"><h1>Account sign-in is disabled</h1><p>This server does not use account or machine sign-in. Open your canvas link to continue.</p></main>
     switch (session.kind) {
       case "loading": return <main className="access"><p role="status">Checking your session…</p></main>
       case "signed-out": return <SignIn title="Sign in to connect a machine" access={access} onLogin={(user) => setSession({ kind: "signed-in", user })} />

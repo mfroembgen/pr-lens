@@ -29,7 +29,11 @@ Create a private `bridge.json`:
 
 Use the exact value from `git remote get-url origin` for `repositoryOrigin`. The checkout must be clean and at the question's published head commit. A question about an older revision needs a checkout at that revision. The bridge refuses a different origin, head, or dirty checkout, and checks again before returning an answer.
 
-Supply credentials through your secret manager or shell environment:
+For a server running `AUTH_MODE=none`, add `"authMode": "none"` to this config.
+Do not supply canvas or GitLab tokens; the bridge sends no authentication headers.
+The server must be reachable only through your trusted network.
+
+For a protected server, supply credentials through your secret manager or shell environment:
 
 - `PR_LENS_CANVAS_WRITE_TOKEN`: this canvas's write token. The bridge needs no global publisher token.
 - `PR_LENS_GITLAB_TOKEN`: a GitLab token with `read_api` scope when the server uses GitLab project access checks. The account needs Reporter access or higher to the bound project.

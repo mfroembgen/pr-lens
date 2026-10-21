@@ -27,6 +27,7 @@ export const createDeviceRoutes = (store: Store, auth: ReturnType<typeof createA
     return who;
   };
   return async (request: IncomingMessage, url: URL) => {
+    if (auth.open) return undefined;
     const method = request.method ?? "GET";
     if (url.pathname === "/api/device/code" && method === "POST") {
       if (auth.gitlabOrigin === undefined) throw new Refusal(404, "NOT_FOUND", "Device sign-in requires GitLab authentication");

@@ -31,7 +31,7 @@ const QuestionSchema = z.discriminatedUnion("status", [
   QuestionBase.extend({ status: z.literal("failed"), error: QuestionFailure }),
 ])
 export const DiffSchema = z.object({ baseCommit: z.string().regex(/^[a-f0-9]{40}$/), headCommit: z.string().regex(/^[a-f0-9]{40}$/), unifiedDiff: z.string() })
-const AccessSchema = z.object({ auth: z.enum(["gitlab", "capability"]), gitlabOrigin: z.string().optional(), publisherRequired: z.boolean(), accounts: z.boolean() })
+const AccessSchema = z.object({ auth: z.enum(["none", "gitlab", "capability"]), gitlabOrigin: z.string().optional(), publisherRequired: z.boolean(), accounts: z.boolean() })
 const UserSchema = z.object({ id: z.number(), name: z.string(), username: z.string() })
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) })
 export type Page = z.infer<typeof PageSchema>

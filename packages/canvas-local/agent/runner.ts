@@ -6,10 +6,12 @@ import { pathToFileURL } from "node:url";
 import { GraphDoc, LiveCommand, ViewerLook } from "@coldtea/pr-lens-schema";
 import { z } from "zod";
 import { unknownPlaces } from "../src/places.js";
+import { AuthMode } from "../src/auth.js";
 
 const Token = z.string().regex(/^[A-Za-z0-9_-]{22}$/);
 const Sha = z.string().regex(/^[a-f0-9]{40}$/);
 export const Config = z.strictObject({
+  authMode: AuthMode.default("protected"),
   server: z.url().refine((value) => { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash && url.pathname === "/"; }, "Use an HTTPS origin without credentials"),
   canvasId: Token,
   repository: z.string().refine(isAbsolute, "Use an absolute repository path"),
@@ -116,8 +118,9 @@ const saveJournal = async (config: Config, journal: Journal): Promise<void> => {
   await rename(temporary, config.stateFile);
 };
 
-export const bridge = async (config: Config, token: string, gitlabToken: string | undefined, signal: AbortSignal): Promise<void> => {
-  Token.parse(token);
+export const bridge = async (config: Config, token: string | undefined, gitlabToken: string | undefined, signal: AbortSignal): Promise<void> => {
+  const credential = config.authMode === "none" ? undefined : Token.parse(token);
+  const member = config.authMode === "none" ? undefined : gitlabToken;
   const repository = await realpath(config.repository);
   const state = resolve(config.stateFile);
   if (state === repository || state.startsWith(`${repository}/`)) throw new Error("STATE_FILE_INSIDE_REPOSITORY");
@@ -130,7 +133,7 @@ export const bridge = async (config: Config, token: string, gitlabToken: string 
   const request = async (url: string, value?: unknown): Promise<unknown> => {
     const response = await fetch(url, {
       method: value === undefined ? "GET" : "POST", redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
-      headers: { authorization: `Bearer ${token}`, ...(gitlabToken ? { "X-PR-Lens-GitLab-Token": gitlabToken } : {}), ...(value === undefined ? {} : { "content-type": "application/json" }) },
+      headers: { ...(credential === undefined ? {} : { authorization: `Bearer ${credential}` }), ...(member ? { "X-PR-Lens-GitLab-Token": member } : {}), ...(value === undefined ? {} : { "content-type": "application/json" }) },
       ...(value === undefined ? {} : { body: JSON.stringify(value) }),
     });
     if (!response.ok) {
@@ -186,7 +189,7 @@ const main = async () => {
   if (!path) throw new Error("CONFIG_REQUIRED");
   const config = Config.parse(JSON.parse(await readFile(path, "utf8")));
   const token = process.env.PR_LENS_CANVAS_WRITE_TOKEN;
-  if (!token) throw new Error("PR_LENS_CANVAS_WRITE_TOKEN_REQUIRED");
+  if (config.authMode !== "none" && !token) throw new Error("PR_LENS_CANVAS_WRITE_TOKEN_REQUIRED");
   const stop = new AbortController();
   process.once("SIGINT", () => stop.abort()); process.once("SIGTERM", () => stop.abort());
   await bridge(config, token, process.env.PR_LENS_GITLAB_TOKEN, stop.signal);

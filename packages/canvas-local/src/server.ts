@@ -5,7 +5,7 @@ import { assertNever, LiveCommand, safeParseGraphDoc, ViewerLook, type GraphDoc 
 import { z } from "zod";
 import { apiTile, drawSketch, drawTiles, type DrawnTile } from "./draw.js";
 import { unknownPlaces, validOf, placesOf } from "./places.js";
-import { bearer, createAuth, header } from "./auth.js";
+import { AuthMode, bearer, createAuth, header } from "./auth.js";
 import { createDeviceRoutes } from "./devices.js";
 import { Refusal, invalid, liveEnded, notFound } from "./errors.js";
 import { FailureCode, hashToken, mintToken, openStore, Provenance, SourceDiff, TOKEN, tokenMatches, type Canvas, type Question, type Session, type StoredEvent } from "./store.js";
@@ -23,7 +23,7 @@ const AckBody = LeaseBody.extend({ result: LiveCommand });
 const FailBody = LeaseBody.extend({ code: FailureCode, retryable: z.boolean() });
 export type LiveEvent = StoredEvent | { kind: "command"; command: LiveCommand; sketch?: ReturnType<typeof drawSketch> };
 export type ServerOptions = {
-  dir: string; dbPath?: string; web?: string; publishToken?: string;
+  dir: string; dbPath?: string; web?: string; publishToken?: string; authMode?: AuthMode;
   publicOrigin?: string; gitlabOrigin?: string; accountToken?: string;
 };
 type Answer = { status: number; json: unknown; headers?: Record<string, string> };
@@ -37,6 +37,7 @@ const parse = <T>(schema: z.ZodType<T>, value: unknown): T => {
 export const createCanvasServer = async (options: ServerOptions) => {
   const store = await openStore(options.dir, options.dbPath);
   const auth = createAuth({
+    authMode: AuthMode.parse(options.authMode ?? process.env.AUTH_MODE ?? "protected"),
     publishToken: options.publishToken ?? process.env.PUBLISH_TOKEN ?? "",
     ...(options.publicOrigin === undefined ? {} : { publicOrigin: options.publicOrigin }),
     ...(options.gitlabOrigin === undefined ? {} : { gitlabOrigin: options.gitlabOrigin }),
@@ -46,7 +47,7 @@ export const createCanvasServer = async (options: ServerOptions) => {
   let drawingBytes = 0;
   const urls = (request: IncomingMessage, canvas: Canvas, token?: string) => {
     const view = `${auth.origin(request)}/c/${canvas.id}`;
-    return { viewUrl: view, embedUrl: `${view}.svg`, ...(token === undefined ? {} : { editUrl: `${view}#w=${token}` }) };
+    return { viewUrl: view, embedUrl: `${view}.svg`, ...(auth.open ? { editUrl: view } : token === undefined ? {} : { editUrl: `${view}#w=${token}` }) };
   };
   const body = async (request: IncomingMessage): Promise<unknown> => {
     const chunks: Buffer[] = [];
@@ -69,9 +70,10 @@ export const createCanvasServer = async (options: ServerOptions) => {
     if (revision !== undefined) { const snapshot = store.revision(id, revision); if (snapshot === undefined) throw notFound(); return snapshot; }
     return canvas;
   };
+  const writeAllowed = (request: IncomingMessage, canvas: Canvas) => auth.open || tokenMatches(bearer(request), canvas.tokenHash);
   const writable = async (request: IncomingMessage, id: string): Promise<Canvas> => {
     const canvas = await readable(request, id);
-    if (!tokenMatches(bearer(request), canvas.tokenHash)) throw notFound();
+    if (!writeAllowed(request, canvas)) throw notFound();
     return canvas;
   };
   const documentOf = (canvas: Canvas): GraphDoc => {
@@ -115,7 +117,7 @@ export const createCanvasServer = async (options: ServerOptions) => {
   const runner = async (request: IncomingMessage, live: Session) => {
     const canvas = await readable(request, live.canvas);
     const token = bearer(request);
-    if (!tokenMatches(token, canvas.tokenHash) && !(live.keyHash !== undefined && tokenMatches(token, live.keyHash)) &&
+    if (!writeAllowed(request, canvas) && !(live.keyHash !== undefined && tokenMatches(token, live.keyHash)) &&
       !(canvas.owner !== undefined && await auth.account(request) === canvas.owner)) throw notFound();
     return canvas;
   };
@@ -145,13 +147,13 @@ export const createCanvasServer = async (options: ServerOptions) => {
     const worker = async () => {
       workerOwner = await auth.account(request);
       if (live !== undefined) return runner(request, live);
-      if (!tokenMatches(bearer(request), canvas.tokenHash) && !(canvas.owner !== undefined && await auth.account(request) === canvas.owner)) throw notFound();
+      if (!writeAllowed(request, canvas) && !(canvas.owner !== undefined && await auth.account(request) === canvas.owner)) throw notFound();
       return canvas;
     };
     const confirmWorker = () => {
       const current = store.read(id);
       const currentLive = live === undefined ? undefined : session(id, live.id);
-      if (current === undefined || (!tokenMatches(bearer(request), current.tokenHash) &&
+      if (current === undefined || (!writeAllowed(request, current) &&
         !(currentLive?.keyHash !== undefined && tokenMatches(bearer(request), currentLive.keyHash)) &&
         !(current.owner !== undefined && current.owner === workerOwner))) throw notFound();
     };
@@ -246,7 +248,7 @@ export const createCanvasServer = async (options: ServerOptions) => {
     const deviceAnswer = await deviceRoutes(request, url);
     if (deviceAnswer !== undefined) return deviceAnswer;
     if (url.pathname === "/api/access" && method === "GET")
-      return { status: 200, json: { auth: auth.gitlabOrigin === undefined ? "capability" : "gitlab", gitlabOrigin: auth.gitlabOrigin, publisherRequired: true, accounts: auth.accounts } };
+      return { status: 200, json: { auth: auth.open ? "none" : auth.gitlabOrigin === undefined ? "capability" : "gitlab", gitlabOrigin: auth.gitlabOrigin, publisherRequired: !auth.open, accounts: auth.accounts } };
     if (url.pathname === "/api/auth/login" && method === "POST") {
       const value = parse(z.object({ token: z.string().min(1).max(1024) }), await body(request));
       const result = await auth.login(request, value.token);
@@ -254,15 +256,15 @@ export const createCanvasServer = async (options: ServerOptions) => {
     }
     if (url.pathname === "/api/auth/me" && method === "GET") {
       const who = await auth.identity(request);
-      if (who === undefined) throw new Refusal(401, "UNAUTHENTICATED", "Sign in with GitLab");
+      if (who === undefined) { if (auth.open) throw notFound(); throw new Refusal(401, "UNAUTHENTICATED", "Sign in with GitLab"); }
       return { status: 200, json: { user: who.user } };
     }
     if (url.pathname === "/api/auth/logout" && method === "POST")
       return { status: 200, json: { ok: true }, headers: { "set-cookie": auth.logout(request) } };
     if (url.pathname === "/api/canvases" && method === "GET") {
-      const owner = await auth.requireAccount(request);
+      const owner = auth.open ? undefined : await auth.requireAccount(request);
       const canvases = [];
-      for (const canvas of store.all().filter((item) => item.owner === owner)) {
+      for (const canvas of store.all().filter((item) => auth.open || item.owner === owner)) {
         try { await auth.project(request, canvas); } catch (error) { if (error instanceof Refusal && error.status < 500) continue; throw error; }
         const parsed = safeParseGraphDoc(canvas.document);
         const preview = canvas.rev === 0 ? { type: "not_drawn" } : parsed.ok ? {
@@ -316,7 +318,7 @@ export const createCanvasServer = async (options: ServerOptions) => {
         throw invalid("The document source must match the bound GitLab project");
       return store.transaction(() => {
         const current = store.read(id);
-        if (current === undefined || !tokenMatches(bearer(request), current.tokenHash)) throw notFound();
+        if (current === undefined || !writeAllowed(request, current)) throw notFound();
         if (current.rev !== expected) throw new Refusal(409, "REVISION_MOVED", "The canvas has moved on; pull again, then push", { rev: current.rev });
         const projectId = header(request, "x-pr-lens-gitlab-project-id");
         if (projectId !== undefined && projectId !== current.provenance?.projectId) throw invalid("A canvas cannot change its source project");
@@ -332,7 +334,7 @@ export const createCanvasServer = async (options: ServerOptions) => {
     }
     if (action === undefined && method === "DELETE") {
       auth.publisher(request); await writable(request, id);
-      store.transaction(() => { const current = store.read(id); if (current === undefined || !tokenMatches(bearer(request), current.tokenHash)) throw notFound(); store.remove(id); });
+      store.transaction(() => { const current = store.read(id); if (current === undefined || !writeAllowed(request, current)) throw notFound(); store.remove(id); });
       for (const key of drawings.keys()) if (key.includes(`:${id}:`)) { drawingBytes -= drawings.get(key)?.bytes ?? 0; drawings.delete(key); }
       return { status: 200, json: { id, deleted: true } };
     }
@@ -342,14 +344,14 @@ export const createCanvasServer = async (options: ServerOptions) => {
       await readable(request, id);
       return store.transaction(() => {
         const canvas = store.read(id);
-        if (canvas === undefined || (!tokenMatches(writeToken, canvas.tokenHash) && !tokenMatches(bearer(request), canvas.tokenHash))) throw notFound();
+        if (canvas === undefined || (!auth.open && !tokenMatches(writeToken, canvas.tokenHash) && !tokenMatches(bearer(request), canvas.tokenHash))) throw notFound();
         store.write({ ...canvas, tokenHash: hashToken(writeToken) });
         return { status: 200, json: { id, editUrl: `${auth.origin(request)}/c/${id}#w=${writeToken}` } };
       });
     }
     if ((action === "claim" || action === "write-token") && method === "POST") {
       auth.publisher(request);
-      const owner = await auth.requireAccount(request);
+      const owner = auth.open ? undefined : await auth.requireAccount(request);
       const raw = await body(request);
       const value = action === "claim" ? { kind: "claim" as const, ...parse(ClaimBody, raw) } : { kind: "write-token" as const, ...parse(TokenBody, raw) };
       await readable(request, id);
@@ -357,12 +359,12 @@ export const createCanvasServer = async (options: ServerOptions) => {
         const canvas = store.read(id);
         if (canvas === undefined) throw notFound();
         if (value.kind === "claim") {
-          if (!tokenMatches(value.writeToken, canvas.tokenHash) && !tokenMatches(value.nextWriteToken, canvas.tokenHash)) throw notFound();
-          if (canvas.owner !== undefined && canvas.owner !== owner) throw new Refusal(409, "ALREADY_OWNED", "This canvas belongs to another account");
-          store.write({ ...canvas, owner, tokenHash: hashToken(value.nextWriteToken) });
+          if (!auth.open && !tokenMatches(value.writeToken, canvas.tokenHash) && !tokenMatches(value.nextWriteToken, canvas.tokenHash)) throw notFound();
+          if (!auth.open && canvas.owner !== undefined && canvas.owner !== owner) throw new Refusal(409, "ALREADY_OWNED", "This canvas belongs to another account");
+          store.write({ ...canvas, ...(owner === undefined ? {} : { owner }), tokenHash: hashToken(value.nextWriteToken) });
           return { status: 200, json: { id, editUrl: `${auth.origin(request)}/c/${id}#w=${value.nextWriteToken}` } };
         }
-        if (canvas.owner !== owner) throw notFound();
+        if (!auth.open && canvas.owner !== owner) throw notFound();
         store.write({ ...canvas, tokenHash: hashToken(value.writeToken) });
         return { status: 200, json: { id, editUrl: `${auth.origin(request)}/c/${id}#w=${value.writeToken}` } };
       });
@@ -381,7 +383,7 @@ export const createCanvasServer = async (options: ServerOptions) => {
         await writable(request, id);
         store.transaction(() => {
           const canvas = store.read(id);
-          if (canvas === undefined || !tokenMatches(bearer(request), canvas.tokenHash)) throw notFound();
+          if (canvas === undefined || !writeAllowed(request, canvas)) throw notFound();
           const graph = documentOf(canvas);
           if (graph.provenance.base.sha !== diff.baseCommit || graph.provenance.head.sha !== diff.headCommit) throw invalid("The diff commits must match the canvas document");
           if (canvas.diff !== undefined && JSON.stringify(canvas.diff) !== JSON.stringify(diff)) throw invalid("A published revision cannot change its source diff");
@@ -398,7 +400,7 @@ export const createCanvasServer = async (options: ServerOptions) => {
       if (method !== "POST") return undefined;
       const canvas = await readable(request, id);
       if (canvas.rev === 0) throw notFound();
-      const canWrite = tokenMatches(bearer(request), canvas.tokenHash) || (canvas.owner !== undefined && await auth.account(request) === canvas.owner);
+      const canWrite = writeAllowed(request, canvas) || (canvas.owner !== undefined && await auth.account(request) === canvas.owner);
       if (store.sessions(id).length >= 32) throw new Refusal(429, "RATE_LIMITED", "This canvas has reached its live session limit", { retryAt: new Date(Date.now() + SESSION_MS).toISOString() });
       const liveKey = canWrite ? undefined : mintToken();
       const secret = mintToken();

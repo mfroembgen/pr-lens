@@ -8,6 +8,18 @@ This page is that protocol. It is written for someone implementing a private sto
 
 The CLI's client, [`packages/cli/src/canvas/api.ts`](../packages/cli/src/canvas/api.ts), is the reference for the shapes here. Where this page and that file disagree, the file is right and this page has a bug.
 
+## This fork's access modes
+
+The self-hosted server defaults to `AUTH_MODE=protected`. Its publishing writes
+require `X-PR-Lens-Publish-Token`, and configuring `GITLAB_ORIGIN` adds project
+access checks. See [self-hosting](self-hosting.md) for those deployment settings.
+
+An explicit `AUTH_MODE=none` trusts network access. No publishing, GitLab, account,
+or canvas bearer credential is checked. `/api/access` returns `auth: "none"` and
+`publisherRequired: false`. IDs and returned write tokens retain their protocol
+shape for existing CLI clients; write tokens do not restrict access in this mode.
+Revisions, source validation, live pairing and question leases still apply.
+
 ## Version
 
 This is version 1 of the contract. Changes to it are additive: a field may be added to an answer, a code may be added to the error table, and a client built against this page keeps working. Removing or retyping anything is a version 2, announced in advance.
