@@ -28,9 +28,9 @@
     "access": "public"
   },
   "scripts": {
-    "skill:sync": "tsx scripts/sync.ts",
+    "skill:sync": "bun scripts/sync.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsrs -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@coldtea/pr-lens-renderer": "workspace:^",

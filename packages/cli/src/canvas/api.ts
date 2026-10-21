@@ -277,6 +277,33 @@ const call = async <T>(
     "user-agent": `pr-lens-cli/${CLI_VERSION}`,
   };
 
+  const publishToken = process.env.PR_LENS_PUBLISH_TOKEN;
+  const gitlabToken = process.env.PR_LENS_GITLAB_TOKEN;
+  if (publishToken || gitlabToken) {
+    const configured = process.env.PR_LENS_API_URL;
+    if (!configured || new URL(configured).origin !== new URL(api).origin)
+      throw unavailable(api, undefined, "self-hosted credentials require a matching PR_LENS_API_URL origin");
+    const target = new URL(api);
+    if (target.protocol !== "https:" && !(target.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)))
+      throw unavailable(api, undefined, "self-hosted credentials require HTTPS");
+    if (publishToken) {
+      if (!/^[a-f0-9]{64}$/i.test(publishToken))
+        throw unavailable(api, undefined, "PR_LENS_PUBLISH_TOKEN must contain 64 hexadecimal characters");
+      headers["x-pr-lens-publish-token"] = publishToken;
+    }
+    if (gitlabToken) {
+      if (gitlabToken.length > 1024 || /[\r\n]/.test(gitlabToken))
+        throw unavailable(api, undefined, "PR_LENS_GITLAB_TOKEN is invalid");
+      headers["x-pr-lens-gitlab-token"] = gitlabToken;
+    }
+    const project = process.env.PR_LENS_GITLAB_PROJECT_ID;
+    if (project) {
+      if (!/^[1-9]\d*$/.test(project))
+        throw unavailable(api, undefined, "PR_LENS_GITLAB_PROJECT_ID must be a positive integer");
+      headers["x-pr-lens-gitlab-project-id"] = project;
+    }
+  }
+
   if (request.token !== undefined)
     headers.authorization = `Bearer ${request.token}`;
 

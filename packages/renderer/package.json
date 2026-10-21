@@ -40,9 +40,9 @@
     "node": ">=20.11"
   },
   "scripts": {
-    "prepublishOnly": "pnpm run build",
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "bun run build",
+    "build": "rm -rf dist && tsrs -p tsconfig.build.json",
+    "typecheck": "tsrs -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },

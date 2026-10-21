@@ -1,0 +1,41 @@
+{
+  "name": "@coldtea/pr-lens-canvas-local",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The PR Lens canvas on your own machine: a store that speaks the canvas API, and the page that shows it.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "pr-lens-canvas": "./dist/bin.js"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsrs -p tsconfig.build.json && bun --bun vite build web",
+    "typecheck": "tsrs -p tsconfig.json --noEmit && tsrs -p web/tsconfig.json --noEmit && tsrs -p agent/tsconfig.json --noEmit",
+    "test": "bun test test agent",
+    "start": "bun dist/bin.js",
+    "dev": "bun --watch src/bin.ts",
+    "agent": "bun agent/runner.ts",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@coldtea/pr-lens-renderer": "workspace:^",
+    "@coldtea/pr-lens-schema": "workspace:^",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "typescript": "7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "4.1.11",
+    "@types/bun": "1.4.3",
+    "@playwright/test": "1.56.1"
+  }
+}

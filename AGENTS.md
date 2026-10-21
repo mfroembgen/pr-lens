@@ -5,7 +5,7 @@ Hard rules for anyone (human or agent) working in this repo. Read fully before w
 ## Hard requirements
 
 - **No secrets in this repo, ever.** This repo needs no credentials. Do not read `~/Documents/dev/pr-lens-secrets/`.
-- **Verify before claiming done**: tests green, `pnpm build` + typecheck clean, and visual output verified in a real browser when the change affects rendered SVGs.
+- **Verify before claiming done**: tests green, `mise exec -- bun run verify` clean, and visual output verified in a real browser when the change affects rendered SVGs.
 - **No AI attribution in commits or pull requests.** No `Co-Authored-By` line for a model, no "Generated with" footer, no session link, no bot listed as an author. Whoever opened the pull request is the author of every commit in it. Coding agents add these by default: `.claude/settings.json` in this repo turns them off for Claude Code, and if you use another tool, find its switch before your first commit. A squash merge carries a co-author trailer over from the branch, so check the merge box too.
 - **Pass user-facing words through the humanizer before shipping them.** Anything a person reads — comments, captions, tips, README prose, share pages, cards, terminal output — goes through the [humanizer skill](https://github.com/blader/humanizer/blob/main/SKILL.md) first. Copy that reads as machine-written spends trust the diagrams then have to earn back.
 
@@ -111,6 +111,6 @@ Quality software is built on types the compiler can enforce. These are non-negot
 
 # Repo specifics
 
-- pnpm monorepo: `packages/schema` (the contract — everything else consumes it), `packages/renderer` (pure function, no I/O), `packages/cli`, `packages/action`, `packages/agent-skill`. MIT © Coldtea AI.
+- Bun monorepo with pinned tools in `mise.toml`: `packages/schema` (the contract — everything else consumes it), `packages/renderer` (pure function, no I/O), `packages/cli`, `packages/action`, `packages/agent-skill`, and `packages/canvas-local` (server, viewer and local bridge). Use tsrs for compilation and type checking. MIT © Coldtea AI.
 - The renderer must be deterministic: same graph in → byte-identical SVG out. Treat any nondeterminism (object iteration order, Date, random) as a bug.
 - Rendered SVGs must remain GitHub-safe: SMIL/CSS animation only, no scripts, no external resources, self-contained.
