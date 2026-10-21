@@ -3,9 +3,32 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { LiveCommand } from "@coldtea/pr-lens-schema";
+import { LiveCommand, LiveStep, StepFocus, StepStage } from "@coldtea/pr-lens-schema";
 import { z } from "zod";
 import { parseAnswer } from "./runner.js";
+
+const selection = StepFocus.options[1].shape;
+const part = LiveStep.shape.paragraphs.element.shape.parts.element;
+// Codex requires every property; nullable fields become omitted domain fields after parsing.
+const CodexAnswer = LiveCommand.options[0].extend({
+  steps: z.array(LiveStep.extend({
+    stage: z.union(StepStage.options).nullable(),
+    focus: z.union([
+      StepFocus.options[0],
+      z.strictObject({
+        kind: selection.kind,
+        lanes: selection.lanes.removeDefault(),
+        nodes: selection.nodes.removeDefault(),
+        edges: selection.edges.removeDefault(),
+        messages: selection.messages.removeDefault(),
+      }),
+    ]),
+    cannotTell: LiveStep.shape.cannotTell.unwrap().nullable(),
+    paragraphs: z.array(z.strictObject({
+      parts: z.array(part.extend({ ref: part.shape.ref.unwrap().nullable() })).min(1).max(24),
+    })).min(1).max(3),
+  })).min(1).max(4),
+});
 
 export const codexAnswer = async (executable: string, input: unknown): Promise<LiveCommand> => {
   if (!isAbsolute(executable)) throw new Error("CODEX_ABSOLUTE_PATH_REQUIRED");
@@ -14,7 +37,7 @@ export const codexAnswer = async (executable: string, input: unknown): Promise<L
   try {
     const schema = join(directory, "answer.schema.json");
     const output = join(directory, "answer.json");
-    await writeFile(schema, JSON.stringify(z.toJSONSchema(LiveCommand.options[0])), { mode: 0o600 });
+    await writeFile(schema, JSON.stringify(z.toJSONSchema(CodexAnswer)), { mode: 0o600 });
     await new Promise<void>((done, reject) => {
       const child = spawn(executable, ["exec", "--sandbox", "read-only", "--ephemeral", "--model", "gpt-6.1-sol", "-c", 'model_reasoning_effort="xhigh"', "--output-schema", schema, "--output-last-message", output, "-"], {
         cwd: process.cwd(), shell: false, stdio: ["pipe", "ignore", "ignore"],
@@ -26,7 +49,18 @@ export const codexAnswer = async (executable: string, input: unknown): Promise<L
     });
     const answer = await readFile(output, "utf8");
     if (Buffer.byteLength(answer) > 1_000_000) throw new Error("CODEX_ANSWER_TOO_LARGE");
-    return parseAnswer(answer, prompt.question);
+    const result = CodexAnswer.parse(JSON.parse(answer));
+    return parseAnswer(JSON.stringify({
+      ...result,
+      steps: result.steps.map(({ stage, cannotTell, paragraphs, ...step }) => ({
+        ...step,
+        ...(stage === null ? {} : { stage }),
+        ...(cannotTell === null ? {} : { cannotTell }),
+        paragraphs: paragraphs.map(({ parts }) => ({
+          parts: parts.map(({ ref, ...value }) => ref === null ? value : { ...value, ref }),
+        })),
+      })),
+    }), prompt.question);
   } finally { await rm(directory, { recursive: true, force: true }); }
 };
 

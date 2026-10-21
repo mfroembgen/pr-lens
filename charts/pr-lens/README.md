@@ -1,8 +1,8 @@
 # PR Lens Helm chart
 
 Run the durable canvas server with one replica and SQLite on a retained PVC.
-The image and chart are released together; chart `0.1.0` uses
-`ghcr.io/mfroembgen/pr-lens:v0.1.0`.
+The image and chart are released together; chart `0.1.1` uses
+`ghcr.io/mfroembgen/pr-lens:v0.1.1`.
 
 Create a Kubernetes Secret through your secret manager with a `token` key holding
 32 random bytes encoded as 64 lowercase hexadecimal characters. Set
@@ -27,7 +27,7 @@ persistence:
 
 ```bash
 helm upgrade --install pr-lens oci://ghcr.io/mfroembgen/charts/pr-lens \
-  --version 0.1.0 --namespace pr-lens --create-namespace -f values.yaml
+  --version 0.1.1 --namespace pr-lens --create-namespace -f values.yaml
 ```
 
 `publicOrigin` must match the HTTPS viewer origin. With `gitlabOrigin` configured,
