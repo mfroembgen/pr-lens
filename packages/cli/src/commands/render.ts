@@ -80,6 +80,33 @@ const correct = (graph: GraphDoc, config: Config): GraphDoc => {
   }
 };
 
+export const renderGraph = async (
+  graph: GraphDoc,
+  out: string,
+  themes: RenderThemes,
+  terminal: Terminal,
+) => {
+  const rendered = (() => {
+    try {
+      return renderAll(graph, { themes });
+    } catch (error) {
+      if (!(error instanceof PrLensRenderError)) throw error;
+      throw new PrLensCliError("RENDER_FAILED", `${error.message} [${error.code}]`);
+    }
+  })();
+
+  await prepareWorkspace(out, terminal);
+  for (const drawing of rendered.assets) {
+    const { id, path } = drawing.asset;
+    if (path === undefined)
+      throw new PrLensCliError("RENDER_FAILED", `the render named no file for asset '${id}'`);
+    await writeTextFile(join(out, path), drawing.svg);
+  }
+  await writeJsonFile(join(out, DRAWN), graph);
+  await writeJsonFile(join(out, MANIFEST), rendered.manifest);
+  return rendered;
+};
+
 export const renderCommand = async (args: readonly string[], terminal: Terminal): Promise<void> => {
   const { values, positionals } = parseOptions(args, {
     out: { type: "string", short: "o" },
@@ -118,25 +145,7 @@ export const renderCommand = async (args: readonly string[], terminal: Terminal)
     return parsed.value;
   })();
 
-  const rendered = (() => {
-    try {
-      return renderAll(drawn, { themes });
-    } catch (error) {
-      if (!(error instanceof PrLensRenderError)) throw error;
-      throw new PrLensCliError("RENDER_FAILED", `${error.message} [${error.code}]`);
-    }
-  })();
-
-  await prepareWorkspace(out, terminal);
-
-  for (const drawing of rendered.assets) {
-    const { id, path } = drawing.asset;
-    if (path === undefined)
-      throw new PrLensCliError("RENDER_FAILED", `the render named no file for asset '${id}'`);
-    await writeTextFile(join(out, path), drawing.svg);
-  }
-  await writeJsonFile(join(out, DRAWN), drawn);
-  await writeJsonFile(join(out, MANIFEST), rendered.manifest);
+  const rendered = await renderGraph(drawn, out, themes, terminal);
 
   const diagrams = new Set(rendered.assets.map((asset) => asset.asset.view ?? asset.lens));
   terminal.out(

@@ -1,0 +1,126 @@
+name: Self-hosted canvas
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run verify
+      - run: bun run --cwd packages/canvas-local playwright install --no-shell chromium
+      - run: bun run test:browser
+      - run: helm lint --strict charts/pr-lens
+      - run: helm template canvas charts/pr-lens --set existingSecret=canvas-publish > /tmp/canvas.yaml
+      - name: Verify production image and persistent volume recovery
+        run: |
+          docker build --tag pr-lens:check .
+          python3 scripts/container-smoke.py pr-lens:check
+      - name: Build standalone CLIs
+        run: |
+          mkdir -p dist/cli
+          cp LICENSE dist/cli/LICENSE
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/oven-sh/bun/bun-v1.4.3/LICENSE.md \
+            --output dist/cli/BUN_LICENSE.md
+          cat packages/cli/node_modules/zod/LICENSE packages/cli/node_modules/yaml/LICENSE \
+            > dist/cli/THIRD_PARTY_NOTICES
+          for platform in linux-x64 linux-arm64 macos-x64 macos-arm64; do
+            bun run compile:cli --target=bun-${platform/macos/darwin}
+            tar -czf dist/pr-lens-cli-${platform}.tar.gz -C dist/cli \
+              pr-lens LICENSE BUN_LICENSE.md THIRD_PARTY_NOTICES
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cli-archives
+          path: dist/pr-lens-cli-*.tar.gz
+          if-no-files-found: error
+
+  cli:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+          - platform: macos-x64
+            runner: macos-15-intel
+          - platform: macos-arm64
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cli-archives
+          path: dist
+      - name: Verify extracted CLI without Bun or Node
+        run: bash scripts/cli-smoke.sh dist/pr-lens-cli-${{ matrix.platform }}.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'mfroembgen/pr-lens'
+    needs: [verify, cli]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cli-archives
+          path: dist/cli-assets
+      - name: Publish standalone CLIs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist/cli-assets
+          sha256sum pr-lens-cli-*.tar.gz > SHA256SUMS
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
+              --title "Self-hosted PR Lens $GITHUB_REF_NAME" \
+              --notes "Self-hosted canvas, Helm chart and standalone CLI binaries for macOS and Linux."
+          gh release upload "$GITHUB_REF_NAME" pr-lens-cli-*.tar.gz SHA256SUMS --clobber
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/mfroembgen/pr-lens:${{ github.ref_name }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            REVISION=${{ github.sha }}
+          provenance: true
+          sbom: true
+      - name: Publish Helm chart
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          chart_version="${GITHUB_REF_NAME#v}"
+          test "$(helm show chart charts/pr-lens | sed -n 's/^version: //p')" = "$chart_version"
+          printf '%s' "$GHCR_TOKEN" | helm registry login ghcr.io --username "$GHCR_USER" --password-stdin
+          helm package charts/pr-lens --destination /tmp/charts
+          helm push "/tmp/charts/pr-lens-${chart_version}.tgz" oci://ghcr.io/mfroembgen/charts

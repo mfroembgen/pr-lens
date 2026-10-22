@@ -110,6 +110,10 @@ Turns a pull-request document into the map of the system once that pull request 
 
 The map is a snapshot, not a source of truth. Nothing reads it back into the pipeline: a committed map that overrode inference would be hand-maintained rot with merge conflicts attached. Commit it so a repository has something to read, to diff, and to hand an agent.
 
+### `publish`
+
+The fork's release bundle includes `publish` for self-hosted canvases. It renders a graph, publishes its exact-commit source diff, and writes a publication receipt. The agent uploads the SVG and updates the GitLab MR description through GitLab MCP or `glab`; `publish description` formats the clickable preview at the end. Follow [the local publishing instructions](../../docs/self-hosting.md#publish-locally) for installation, revision checks, and recovery.
+
 ### `canvas`
 
 ```bash
