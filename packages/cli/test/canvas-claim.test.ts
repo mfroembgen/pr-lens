@@ -80,7 +80,7 @@ test("a second claim is refused rather than quietly rotating again", async () =>
   expect(output.err.join("\n")).toContain("[CANVAS_OWNED]");
 
   // Asked who owns it and stopped there: nothing was sent to the claim route.
-  expect(asked()).toEqual(["GET /api/canvases"]);
+  expect(asked()).toEqual(["GET /api/access", "GET /api/canvases"]);
   expect((await registry())[FIRST]?.writeToken).toBe(settled);
   expect(app.canvases.get(FIRST)?.token).toBe(settled);
 });
@@ -129,14 +129,14 @@ test("a claim whose answer was lost keeps the token it minted, and the next run 
   );
 });
 
-test("a machine that is not signed in is told so, and the app is asked nothing", async () => {
+test("a signed-out machine checks access mode before requiring an account", async () => {
   await pushed();
 
   expect(await claim(FIRST, "--api", API)).toBe(1);
   expect(output.err.join("\n")).toContain(
     "not signed in to canvas.test [AUTH_REQUIRED]",
   );
-  expect(app.seen).toEqual([]);
+  expect(app.seen.map((request) => request.path)).toEqual(["/api/access"]);
 });
 
 test("will not send a token to another app, or claim what this checkout holds no token for", async () => {
@@ -157,7 +157,7 @@ test("will not send a token to another app, or claim what this checkout holds no
   output.err = [];
   expect(await claim(FIRST, "--api", API)).toBe(1);
   expect(output.err.join("\n")).toContain("holds no write token for it");
-  expect(app.seen).toEqual([]);
+  expect(app.seen.map((request) => request.path)).toEqual(["/api/access"]);
 });
 
 test("claim takes one canvas, named or by id", async () => {

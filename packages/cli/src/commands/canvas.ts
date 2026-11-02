@@ -29,7 +29,7 @@ import { readInstallId } from "../install.js";
 import { readGraphDoc } from "../document.js";
 import type { Terminal } from "../terminal.js";
 import { drawings, WORKSPACE_DIR } from "../workspace.js";
-import { readToken, requireToken } from "../auth.js";
+import { readToken } from "../auth.js";
 import { claimCommand } from "../canvas/claim.js";
 import { pullCanvas, readCanvasRef, refApi, tellRecorded } from "../canvas/pull.js";
 import { deleteCommand } from "../canvas/delete.js";
@@ -43,7 +43,7 @@ import {
 } from "../canvas/live.js";
 import { parseOptions, readBoolean, readString } from "../args.js";
 import { PrLensCliError, usageError } from "../errors.js";
-import { DEFAULT_API, API_ENV, readApi, requireSameApi, requireWriteToken, settleRotation, settlePendingRotation, writeCredential } from "../canvas/write.js";
+import { DEFAULT_API, API_ENV, accountCredential, readApi, requireSameApi, settleRotation, settlePendingRotation, writeCredential } from "../canvas/write.js";
 
 const DRAWN = "drawn.graph.json";
 
@@ -460,13 +460,12 @@ const list = async (
     (canvas) => !narrowed || canvas.api === api,
   );
 
-  const canvases = remote
-    ? merged(
-        local,
-        api,
-        await listOwnedCanvases(api, await requireToken(env, api)),
-      )
-    : local;
+  let canvases = local;
+  if (remote) {
+    const credential = await accountCredential(env, api);
+    canvases = merged(local, api, await listOwnedCanvases(api, credential));
+    if (credential === undefined) canvases = canvases.map((canvas) => canvas.api === api ? { ...canvas, editHere: true } : canvas);
+  }
 
   if (readBoolean(values.json)) {
     terminal.out(JSON.stringify({ canvases }, null, 2));

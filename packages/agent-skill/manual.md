@@ -182,7 +182,7 @@ The sketch can leave out `schemaVersion`, `kind` and `provenance`; they come fro
 
 **When the question needs the diagram itself changed** (a missing component, a wrong arrow), edit the document, validate, render and `canvas push` as usual. The open tab reloads onto the new revision by itself.
 
-After `answer`, `show` and `fork`, the CLI says where the reader is. If it says they stepped out, tell the user the answer is waiting in their Questions list, and that `/` opens it.
+After `answer`, `show` and `fork`, the CLI says where the reader is. If it says they stepped out, ask the user to select Follow agent to resume the live presentation.
 
 ## The pull request body, when there is one
 

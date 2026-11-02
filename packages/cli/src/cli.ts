@@ -11,8 +11,9 @@ import { renderCommand, USAGE as RENDER_USAGE } from "./commands/render.js";
 import { analyzeCommand, USAGE as ANALYZE_USAGE } from "./commands/analyze.js";
 import { commentCommand, USAGE as COMMENT_USAGE } from "./commands/comment.js";
 import { USAGE as VALIDATE_USAGE, validateCommand } from "./commands/validate.js";
+import { publishCommand, USAGE as PUBLISH_USAGE } from "./commands/publish.js";
 
-const COMMANDS = ["analyze", "render", "comment", "validate", "export", "canvas", "auth", "skill"] as const;
+const COMMANDS = ["analyze", "render", "comment", "validate", "export", "canvas", "auth", "skill", "publish"] as const;
 type CommandName = (typeof COMMANDS)[number];
 
 const isCommand = (value: string): value is CommandName =>
@@ -29,6 +30,7 @@ const HELP = `pr-lens — review what actually matters
                     open | answer | show | fork | look          your coding agent, answering on that page
   pr-lens auth      login | status | logout   sign this machine in, so the canvases it pushes are yours
   pr-lens skill                             diagram instructions for coding agents
+  pr-lens publish  <graph.json>              publish a self-hosted review for your agent to attach to GitLab
 
   pr-lens <command> --help                  what a command takes
   pr-lens --version
@@ -54,6 +56,8 @@ const usageFor = (command: CommandName): string => {
       return AUTH_USAGE;
     case "skill":
       return SKILL_USAGE;
+    case "publish":
+      return PUBLISH_USAGE;
     default:
       return assertNever(command, "Unhandled command");
   }
@@ -82,6 +86,8 @@ const dispatch = (
       return authCommand(args, terminal, env);
     case "skill":
       return skillCommand(args, terminal);
+    case "publish":
+      return publishCommand(args, terminal);
     default:
       return assertNever(command, "Unhandled command");
   }
