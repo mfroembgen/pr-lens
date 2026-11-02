@@ -1,0 +1,13 @@
+.git
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/coverage
+**/test-results
+**/playwright-report
+.env
+.env.*
+*.sqlite*
+*.db
+agent-state
