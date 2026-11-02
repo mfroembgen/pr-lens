@@ -2,7 +2,7 @@
   "name": "pr-lens",
   "version": "0.0.0",
   "private": true,
-  "description": "Review what actually matters \u2014 PR diffs as animated, interactive diagrams inside the GitHub pull request.",
+  "description": "Review what actually matters — PR diffs as animated, interactive diagrams inside the GitHub pull request.",
   "license": "MIT",
   "author": "Coldtea AI",
   "repository": {
@@ -29,12 +29,10 @@
   },
   "devDependencies": {
     "typescript": "7.0.2",
-    "vitest": "4.1.11",
+    "vitest": "4.1.12",
     "tsrs": "0.18.0-ts7.1.0-dev.20260929"
   },
-  "workspaces": [
-    "packages/*"
-  ],
+  "workspaces": ["packages/*"],
   "trustedDependencies": [
     "esbuild"
   ]

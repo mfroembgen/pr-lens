@@ -57,6 +57,9 @@ test.each([
     const calls = (await readFile(log, "utf8")).split("\n");
     expect(calls.some((call) => call.startsWith("push "))).toBe(!alreadyPublished);
     expect(calls.some((call) => call.startsWith("commit "))).toBe(!alreadyPublished);
+    expect(calls.some((call) => call.includes("remote add origin https://github.com/owner/repo.git"))).toBe(true);
+    expect(calls.some((call) => call.includes("test-token@"))).toBe(false);
+    expect(calls.some((call) => call.includes("config http.extraHeader"))).toBe(true);
   } finally {
     await rm(root, { force: true, recursive: true });
   }

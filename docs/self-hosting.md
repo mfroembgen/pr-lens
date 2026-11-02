@@ -6,7 +6,7 @@ The viewer supports pan and zoom, light and dark themes, walkthroughs, payload i
 
 ## Install with Helm
 
-Image: `ghcr.io/mfroembgen/pr-lens:v0.1.10`. Chart: `oci://ghcr.io/mfroembgen/charts/pr-lens`, version `0.1.10`.
+Image: `ghcr.io/mfroembgen/pr-lens:v0.13.3`. Chart: `oci://ghcr.io/mfroembgen/charts/pr-lens`, version `0.13.3`.
 
 For the default protected mode, create a Secret through your existing secret manager. Its `token` key must contain 64 random hexadecimal characters. Keep the same value across restarts: the server derives its credential-encryption key from it.
 
@@ -26,7 +26,7 @@ ingress:
 
 ```sh
 helm upgrade --install pr-lens oci://ghcr.io/mfroembgen/charts/pr-lens \
-  --version 0.1.10 --namespace pr-lens --create-namespace --values values.yaml
+  --version 0.13.3 --namespace pr-lens --create-namespace --values values.yaml
 ```
 
 The chart runs one nonroot replica with a read-only root filesystem, writable `/tmp`, and a retained PVC. `Recreate` prevents two pods competing for the database. A restart briefly interrupts connections; clients reconnect and saved state remains available.
@@ -52,7 +52,7 @@ The CLI browser device flow works through `pr-lens auth login --api https://lens
 
 ## Publish locally
 
-Download `pr-lens-cli-<os>-<arch>.tar.gz` from the [v0.1.10 release](https://github.com/mfroembgen/pr-lens/releases/tag/v0.1.10), choosing `macos` or `linux` and `arm64` or `x64`. Verify it against `SHA256SUMS`, extract it, and put `pr-lens` on your path. The executable includes its runtime, renderer, schema, and agent manual; Bun and Node are not required. Linux builds use glibc. Git is required for commands that inspect or publish repository changes. Run `pr-lens skill` to load the authoring instructions.
+Download `pr-lens-cli-<os>-<arch>.tar.gz` from the [v0.13.3 release](https://github.com/mfroembgen/pr-lens/releases/tag/v0.13.3), choosing `macos` or `linux` and `arm64` or `x64`. Verify it against `SHA256SUMS`, extract it, and put `pr-lens` on your path. The executable includes its runtime, renderer, schema, and agent manual; Bun and Node are not required. Linux builds use glibc. Git is required for commands that inspect or publish repository changes. Run `pr-lens skill` to load the authoring instructions.
 
 `publish` targets a self-hosted server with `authMode: none`. The agent chooses GitLab MCP or `glab` for GitLab operations; it uses a fallback when its selected transport lacks an operation such as attachment upload. Keep GitLab credentials with that transport.
 
@@ -106,6 +106,8 @@ mise exec -- bun run test:browser
 
 The workspace pins Bun, tsrs and build tools. Existing upstream assertions remain in place. Added tests cover authorization, SQLite recovery, device grants, immutable revisions and live commands. Browser tests use the real server.
 
-Tagging `v0.1.10` verifies and publishes an amd64/arm64 image, a matching OCI chart, and standalone CLI binaries for macOS and Linux on ARM64 and x64. Each CLI archive is extracted and checked on its native platform without Bun or Node on its path. Application release CI is separate from local diagram generation and MR updates.
+Run the Self-hosted canvas workflow on the patched branch with `publish` enabled to release the amd64/arm64 image, OCI chart and four standalone CLI binaries. Other runs only verify the source. Each CLI archive is checked on its native platform without Bun or Node on its path before publication. Existing release, image or chart versions stop publication for provenance review.
+
+Versions come from the upstream CLI manifest; image tags retain the `v` prefix. The upstream Git tag stays on its original commit. Draft release notes record both that commit and the patched source commit, and each CLI archive includes `SOURCE_COMMIT`. Application releases are separate from local diagram generation and MR updates.
 
 The initial viewer was adapted from [the MIT community canvas](https://github.com/jasonkneen/pr-lens-with-canvas/tree/8394968c473d2699fbde6ab33f246d9b5aff6441/packages/canvas-local). Copyright and license notices are retained. This is an independent implementation of the public protocol; the upstream hosted application is maintained separately.

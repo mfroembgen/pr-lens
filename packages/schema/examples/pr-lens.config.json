@@ -29,6 +29,7 @@
     ]
   },
   "branding": true,
+  "glossary": "docs/CONTEXT.md#Language",
   "github": {
     "comment": {
       "collapsed": false,

@@ -461,6 +461,7 @@ export const exampleConfigInput: ConfigInput = {
     group: [{ match: "id:build-bulk-payload", group: "broadcast-lib" }],
   },
   branding: true,
+  glossary: "docs/CONTEXT.md#Language",
 };
 
 /** The inventory a render of the pull-request document produces. */

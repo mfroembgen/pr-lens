@@ -72,6 +72,14 @@ export const Config = z
       .boolean()
       .default(true)
       .describe("Show the 'Rendered by PR Lens' footer on comments."),
+    glossary: z
+      .string()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe(
+        "A markdown file in the repository that explains the team's own terms for this system, with an optional heading after `#`: `docs/CONTEXT.md#Language`. Drawings, walkthroughs and the canvas use its words.",
+      ),
     github: z
       .strictObject({
         comment: z

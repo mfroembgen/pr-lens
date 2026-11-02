@@ -24,7 +24,8 @@ for ATTEMPT in 1 2 3 4 5; do
   git init --quiet
   git config user.name "github-actions[bot]"
   git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-  git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+  git config http.extraHeader "AUTHORIZATION: basic $(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\r\n')"
+  git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
 
   if git fetch --quiet --depth=1 origin "${DATA_BRANCH}" 2>/dev/null; then
     git checkout --quiet -b "${DATA_BRANCH}" FETCH_HEAD

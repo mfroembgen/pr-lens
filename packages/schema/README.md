@@ -152,6 +152,7 @@ A stored map describes a system rather than a change, so everything in it is `un
 schemaVersion: 0.1.0
 lenses: [architecture, data-flow]
 branding: true
+glossary: docs/CONTEXT.md#Language
 github:
   draw: auto
   description: true
@@ -173,6 +174,8 @@ map:
 ```
 
 A `match` beginning with `id:` addresses one node exactly; anything else is a path glob matched against a node's file paths, so a correction survives the model renaming the node between runs. Corrections are an overlay applied over fresh inference on every run. Inference never writes back into this file.
+
+`glossary` names a markdown file in the repository that explains the team's own terms for the system, so drawings, walkthroughs and the canvas use those words rather than the code's. A heading after `#` narrows it to one section. The hosted App reads it from the PR's head commit.
 
 The hosted App reads `github` settings from the PR's head commit. Other options apply to the CLI.
 

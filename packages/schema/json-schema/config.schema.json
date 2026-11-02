@@ -144,6 +144,12 @@
       "description": "Show the 'Rendered by PR Lens' footer on comments.",
       "type": "boolean"
     },
+    "glossary": {
+      "description": "A markdown file in the repository that explains the team's own terms for this system, with an optional heading after `#`: `docs/CONTEXT.md#Language`. Drawings, walkthroughs and the canvas use its words.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
     "github": {
       "default": {},
       "type": "object",

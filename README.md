@@ -7,6 +7,8 @@
 
 <h1 align="center">PR Lens</h1>
 
+<p align="center">English · <a href="README.zh-CN.md">简体中文</a></p>
+
 This fork adds a self-hosted Bun server with a React/Vite viewer, SQLite persistence, optional GitLab access checks, and a VPN-only mode. Its standalone CLI publishes diagrams and source diffs for agents to attach as clickable GitLab MR previews. [Self-hosting guide](docs/self-hosting.md) · [Helm chart](charts/pr-lens).
 
 <p align="center">
