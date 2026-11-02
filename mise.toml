@@ -1,0 +1,8 @@
+[tools]
+bun = "1.4.3"
+node = "24.22.0"
+"npm:tsrs" = "0.18.0-ts7.1.0-dev.20260929"
+helm = "3.19.0"
+
+[tasks.verify]
+run = "bun run verify"

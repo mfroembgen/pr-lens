@@ -277,6 +277,33 @@ const call = async <T>(
     "user-agent": `pr-lens-cli/${CLI_VERSION}`,
   };
 
+  const publishToken = process.env.PR_LENS_PUBLISH_TOKEN;
+  const gitlabToken = process.env.PR_LENS_GITLAB_TOKEN;
+  if (publishToken || gitlabToken) {
+    const configured = process.env.PR_LENS_API_URL;
+    if (!configured || new URL(configured).origin !== new URL(api).origin)
+      throw unavailable(api, undefined, "self-hosted credentials require a matching PR_LENS_API_URL origin");
+    const target = new URL(api);
+    if (target.protocol !== "https:" && !(target.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)))
+      throw unavailable(api, undefined, "self-hosted credentials require HTTPS");
+    if (publishToken) {
+      if (!/^[a-f0-9]{64}$/i.test(publishToken))
+        throw unavailable(api, undefined, "PR_LENS_PUBLISH_TOKEN must contain 64 hexadecimal characters");
+      headers["x-pr-lens-publish-token"] = publishToken;
+    }
+    if (gitlabToken) {
+      if (gitlabToken.length > 1024 || /[\r\n]/.test(gitlabToken))
+        throw unavailable(api, undefined, "PR_LENS_GITLAB_TOKEN is invalid");
+      headers["x-pr-lens-gitlab-token"] = gitlabToken;
+    }
+    const project = process.env.PR_LENS_GITLAB_PROJECT_ID;
+    if (project) {
+      if (!/^[1-9]\d*$/.test(project))
+        throw unavailable(api, undefined, "PR_LENS_GITLAB_PROJECT_ID must be a positive integer");
+      headers["x-pr-lens-gitlab-project-id"] = project;
+    }
+  }
+
   if (request.token !== undefined)
     headers.authorization = `Bearer ${request.token}`;
 
@@ -333,6 +360,11 @@ const call = async <T>(
 
 const canvasPath = (id: string): string => `/api/canvas/${id}`;
 
+export const isOpenCanvasServer = (api: string): Promise<boolean> =>
+  call(api, { method: "GET", path: "/api/access", canvas: undefined, token: undefined },
+    z.object({ auth: z.string(), publisherRequired: z.boolean() }))
+    .then((access) => access.auth === "none" && !access.publisherRequired, () => false);
+
 /** The bearer is how CI attributes a mint: a runner's install id is never linked. */
 export const mintCanvas = (
   api: string,
@@ -371,7 +403,7 @@ export const fetchCanvas = async (
 export const pushCanvas = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
   rev: number,
   document: GraphDoc,
 ): Promise<Pushed> =>
@@ -387,6 +419,32 @@ export const pushCanvas = (
     },
     Pushed,
   );
+
+const SourceDiff = z.object({
+  baseCommit: z.string().regex(/^[a-f0-9]{40}$/),
+  headCommit: z.string().regex(/^[a-f0-9]{40}$/),
+  unifiedDiff: z.string(),
+});
+export type SourceDiff = z.infer<typeof SourceDiff>;
+
+export const attachSourceDiff = (
+  api: string,
+  id: string,
+  rev: number,
+  diff: SourceDiff,
+): Promise<{ rev: number; baseCommit: string; headCommit: string }> =>
+  call(api, {
+    method: "PUT", path: `${canvasPath(id)}/diff`, canvas: id,
+    ifMatch: rev, body: diff,
+  }, z.object({
+    rev: z.literal(rev), baseCommit: z.literal(diff.baseCommit),
+    headCommit: z.literal(diff.headCommit),
+  }));
+
+export const fetchSourceDiff = (api: string, id: string, rev: number): Promise<SourceDiff> =>
+  call(api, {
+    method: "GET", path: `${canvasPath(id)}/diff?rev=${rev}`, canvas: id,
+  }, SourceDiff);
 
 /** A rotation onto itself changes nothing and is answered "rotated" only for the current token. */
 export const verifyWriteToken = (
@@ -407,7 +465,7 @@ export const verifyWriteToken = (
 export const rotateCanvas = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
   nextToken: string,
 ): Promise<Rotated> =>
   call(
@@ -425,7 +483,7 @@ export const rotateCanvas = (
 export const deleteCanvas = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
 ): Promise<{ id: string; deleted: true }> =>
   call(
     api,
@@ -457,7 +515,7 @@ export type OwnedCanvas = z.infer<typeof Owned>;
  */
 export const listOwnedCanvases = (
   api: string,
-  token: string,
+  token: string | undefined,
 ): Promise<OwnedCanvas[]> =>
   call(
     api,
@@ -529,7 +587,7 @@ export const openLive = (
 export const sendLive = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
   session: string,
   command: LiveCommand,
 ): Promise<z.infer<typeof LiveSent>> =>
@@ -542,7 +600,7 @@ export const sendLive = (
 export const readLook = (
   api: string,
   id: string,
-  token: string,
+  token: string | undefined,
   session: string,
 ): Promise<LookRead> =>
   call(

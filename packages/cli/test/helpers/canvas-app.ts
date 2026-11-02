@@ -21,12 +21,14 @@ type Stored = {
 type Seen = { method: string; path: string; headers: Headers; body: unknown };
 
 type Route =
+  | { type: "access" }
   | { type: "mint" }
   | { type: "list" }
   | { type: "read"; id: string; canvas: Stored }
   | { type: "push"; id: string; canvas: Stored }
   | { type: "rotate"; id: string; canvas: Stored }
   | { type: "claim"; id: string; canvas: Stored }
+  | { type: "delete"; id: string; canvas: Stored }
   | { type: "unknown" };
 
 const resolveRoute = (
@@ -34,6 +36,7 @@ const resolveRoute = (
   path: string,
   canvases: ReadonlyMap<string, Stored>,
 ): Route => {
+  if (method === "GET" && path === "/api/access") return { type: "access" };
   if (method === "POST" && path === "/api/canvas") return { type: "mint" };
   if (method === "GET" && path === "/api/canvases") return { type: "list" };
 
@@ -56,6 +59,8 @@ const resolveRoute = (
         : action === "claim"
           ? { type: "claim", id, canvas }
           : { type: "unknown" };
+    case "DELETE":
+      return action === undefined ? { type: "delete", id, canvas } : { type: "unknown" };
     default:
       return { type: "unknown" };
   }
@@ -139,6 +144,7 @@ export const setupCanvasAppTest = () => {
     seen: new Array<Seen>(),
     minted: 0,
     loseNextAnswer: false,
+    open: false,
   };
 
   const fakeFetch = async (
@@ -154,6 +160,8 @@ export const setupCanvasAppTest = () => {
 
     const route = resolveRoute(method, url.pathname, app.canvases);
     switch (route.type) {
+      case "access":
+        return json(200, { auth: app.open ? "none" : "capability", publisherRequired: !app.open });
       case "mint": {
         app.minted += 1;
         const id = String(app.minted).padStart(22, "0");
@@ -192,7 +200,7 @@ export const setupCanvasAppTest = () => {
             "INVALID_REQUEST",
             "The body must carry the new writeToken",
           );
-        if (mayWrite(headers, canvas, next)) canvas.token = next;
+        if (app.open || mayWrite(headers, canvas, next)) canvas.token = next;
         else return refuse(404, "NOT_FOUND", "There is no canvas here");
         if (app.loseNextAnswer) {
           app.loseNextAnswer = false;
@@ -202,12 +210,12 @@ export const setupCanvasAppTest = () => {
       }
       case "list": {
         const account = accountOf(headers);
-        if (account === undefined)
+        if (!app.open && account === undefined)
           return refuse(401, "UNAUTHENTICATED", "Sign in to see what you own");
 
         return json(200, {
           canvases: [...app.canvases]
-            .filter(([, canvas]) => canvas.owner === account)
+            .filter(([, canvas]) => app.open || canvas.owner === account)
             .map(([id, canvas]) => ({
               id,
               rev: canvas.rev,
@@ -265,7 +273,7 @@ export const setupCanvasAppTest = () => {
       }
       case "push": {
         const { id, canvas } = route;
-        if (!mayWrite(headers, canvas))
+        if (!app.open && !mayWrite(headers, canvas))
           return refuse(404, "NOT_FOUND", "There is no canvas here");
 
         if (headers.get("if-match") !== String(canvas.rev))
@@ -302,9 +310,14 @@ export const setupCanvasAppTest = () => {
           id,
           rev: canvas.rev,
           ...links(id, canvas.token),
+          ...(app.open ? { editUrl: `${API}/c/${id}` } : {}),
           tiles: TILES,
         });
       }
+      case "delete":
+        if (!app.open && !mayWrite(headers, route.canvas)) return refuse(404, "NOT_FOUND", "There is no canvas here");
+        app.canvases.delete(route.id);
+        return json(200, { id: route.id, deleted: true });
       case "unknown":
         return refuse(404, "NOT_FOUND", "There is no canvas here");
       default:
@@ -331,6 +344,7 @@ export const setupCanvasAppTest = () => {
     app.seen = [];
     app.minted = 0;
     app.loseNextAnswer = false;
+    app.open = false;
     context.fetchMock.mockImplementation(fakeFetch);
   });
 

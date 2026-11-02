@@ -76,7 +76,8 @@ test("will not send a token to another API or delete without a saved token", asy
   expect(await invoke("--api", "https://elsewhere.test")).not.toBe(0);
   await save({ [ID]: { ...entry("Overview"), writeToken: undefined } });
   expect(await invoke("--api", API)).not.toBe(0);
-  expect(fetchMock).not.toHaveBeenCalled();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(String(fetchMock.mock.calls[0]?.[0])).toBe(`${API}/api/access`);
 });
 
 test.each([
