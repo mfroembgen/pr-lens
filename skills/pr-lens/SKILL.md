@@ -25,5 +25,5 @@ The CLI serves skill content that always matches the installed version, so instr
 - Works with any coding agent (Claude Code, Codex, Gemini CLI, Cursor, OpenCode, Copilot)
 - Draws one self-contained animated SVG that GitHub shows in a comment, with no scripts
 - `validate` names the exact field that is wrong, so the agent can fix its own document
-- Opens as a live canvas you can step through and ask questions on
+- Opens as a live canvas with walkthroughs and agent-controlled highlighting
 - Needs no model key when the agent writes the document itself

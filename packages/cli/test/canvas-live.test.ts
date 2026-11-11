@@ -1,6 +1,8 @@
 import { beforeEach, expect, test } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
+import { billingOrgGraph } from "@coldtea/pr-lens-schema/examples";
+
 import { API, GOLDEN, REGISTRY } from "./helpers/canvas.js";
 import { ACCOUNT, FIRST, TOKEN1, refuse, setupCanvasAppTest } from "./helpers/canvas-app.js";
 
@@ -139,7 +141,7 @@ test("an answer that checks out is sent, and says where the reader is", async ()
   expect(live.sent).toMatchObject([{ kind: "answer", ...answer({ kind: "component", id: "send-broadcast-bulk" }) }]);
   expect(output.out).toEqual([
     `✓ answered on ${FIRST} in 1 step`,
-    "  the reader stepped out of agent mode, so the answer is waiting in their Questions list",
+    "  the reader stepped out of agent mode; resume following to see the latest update",
   ]);
 });
 
@@ -352,7 +354,9 @@ test("PR_LENS_TOKEN is not sent to a foreign origin in a pasted link unless the 
   await writeFile(REGISTRY, JSON.stringify(current), "utf8");
   app.seen = [];
   expect(await invoke("canvas", "open", "--canvas", `${API}/c/${THEIRS}`, "--no-browser")).toBe(1);
-  expect(app.seen).toEqual([]);
+  expect(app.seen.map(({ path, headers }) => ({ path, authorization: headers.get("authorization") }))).toEqual([
+    { path: "/api/access", authorization: null },
+  ]);
 
   const SECOND = "3".padStart(22, "0");
   place(SECOND, { document: await golden() });
@@ -364,4 +368,21 @@ test("PR_LENS_TOKEN is not sent to a foreign origin in a pasted link unless the 
     `Bearer ${ACCOUNT}`,
     `Bearer ${ACCOUNT}`,
   ]);
+});
+
+
+test("show focuses data-model tables and rejects unknown table selections locally", async () => {
+  await writeFile("drawn.graph.json", JSON.stringify(billingOrgGraph));
+  await pushAndOpen();
+  expect(await invoke("canvas", "show", "--diagram", "data-model", "--focus", "organization", "--api", API)).toBe(0);
+  expect(live.sent).toMatchObject([{ kind: "show", focus: { tables: ["organization"] } }]);
+
+  await writeFile("answer.json", JSON.stringify({ question: "Which table changed?", steps: [{
+    heading: "Organizations arrive", focus: { kind: "selection", tables: ["missing-table"] },
+    paragraphs: [{ parts: [{ text: "The organization table changed." }] }],
+  }] }));
+  app.seen = [];
+  expect(await invoke("canvas", "answer", "answer.json", "--api", API)).toBe(1);
+  expect(output.err.join("\n")).toContain('no table "missing-table"');
+  expect(app.seen).toEqual([]);
 });
