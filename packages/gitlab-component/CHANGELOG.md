@@ -13,6 +13,17 @@ pipeline that did not set it. A major changes or removes an input, or changes
 a default in a way that could. Pin a major and let minors arrive; nothing
 within one major will break a pipeline.
 
+## 0.1.5
+
+- The default `cli_version` is 0.14.0, which draws the data-model lens: the
+  tables a change touches and the keys between them, beside architecture and
+  data flow.
+
+## 0.1.4
+
+- The default `cli_version` is 0.13.3, which accepts a `glossary` in `pr-lens.yml`.
+  0.12.0 rejected the whole file when one was set.
+
 ## 0.1.3
 
 - The default `cli_version` is 0.12.0, which reads a walkthrough step's `detail`: a

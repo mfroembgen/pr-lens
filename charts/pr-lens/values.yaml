@@ -2,7 +2,7 @@ fullnameOverride: ""
 
 image:
   repository: ghcr.io/mfroembgen/pr-lens
-  tag: v0.13.3
+  tag: v0.15.0
   pullPolicy: IfNotPresent
 
 publicOrigin: https://pr-lens.example.com

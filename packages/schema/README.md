@@ -28,6 +28,8 @@ Every document carries a `schemaVersion`, config included: a repository's correc
 
 ## Views and the render they imply
 
+A manifest also lists the walkthrough embed under `walkthrough`, one entry per half of the theme pair, when the document carries a tour; it sits beside the view assets rather than among them, so it never counts against the view cap below.
+
 A render is one asset per view per theme, so the size of a drill-down tree and the size of a render manifest are one rule, not two numbers:
 
 ```ts
@@ -38,9 +40,53 @@ Each array in the view tree is capped, but its depth is not, so the total is bou
 
 The cap is the worst case, every theme rendered, not what a particular render would emit. A single-theme render could describe twice as many views, but then whether a document is renderable would depend on how it was asked to be rendered, and **if it parses, it renders** is the promise this package exists to make.
 
-## Two lenses
+## Three lenses
 
-`architecture` shows blast radius against the existing system. `data-flow` animates an ordered pipeline. There is deliberately no security lens and no findings field: PR Lens is the comprehension layer, and a document that carries findings is rejected rather than quietly stripped. The `Lens` enum is additive: a future contract version may add lenses, so treat one you do not recognise as a view to skip, not as a failure.
+`architecture` shows blast radius against the existing system. `data-flow` animates an ordered pipeline. `data-model` draws the tables a change touches and the keys between them. There is deliberately no security lens and no findings field: PR Lens is the comprehension layer, and a document that carries findings is rejected rather than quietly stripped. The `Lens` enum is additive: a future contract version may add lenses, so treat one you do not recognise as a view to skip, not as a failure.
+
+## The data model
+
+A document whose change touched a schema may carry a `dataModel`, and then declares the `data-model` lens.
+
+```ts
+dataModel: {
+  stores: [{ id: "billing", label: "Billing", platform: "Postgres" }],
+  tables: [
+    {
+      id: "subscription",
+      label: "Subscription",
+      store: "billing",
+      name: "subscriptions",
+      delta: "modified",
+      badges: ["key moved"],
+      columns: [
+        { name: "id", type: "uuid", key: "primary", delta: "unchanged" },
+        { name: "user_id", type: "uuid", key: "foreign", delta: "removed" },
+        { name: "org_id", type: "uuid", key: "foreign", delta: "added" },
+        { name: "amount_cents", type: "bigint", previousType: "int", delta: "modified" },
+      ],
+      files: [{ path: "migrations/0042_billing_by_org.sql", startLine: 36, endLine: 48 }],
+    },
+  ],
+  relations: [
+    {
+      id: "subscription-user",
+      from: { table: "subscription", column: "user_id" },
+      to: { table: "user", column: "id" },
+      delta: "removed",
+      label: "billed to the user until now",
+    },
+  ],
+}
+```
+
+A `store` is a database, a schema or a namespace: the lane a table sits in, with the platform in its header. A `table` is a table, a collection or a key family, and lists its columns with a delta each, so a dropped column is drawn struck through and an arrived one in green. A column whose type changed carries `previousType`, so the picture says `int → bigint`. A `type` is a name, as the schema spells it: `uuid`, `text[]`, `numeric(5,4)`, `timestamp with time zone`. A quote, an equals sign, a slash, a colon or a `--` has no place in a type name and every place in a default, a literal, a connection string or a comment, so a type carrying one is refused: the picture shows the shape of the data, never the data. `key` marks the table's own key, a column that holds another table's key, or an index row. A `relation` runs from the column that holds a key to the column it points at; `enforced: false` draws a reference nothing enforces, such as one across stores, as a dotted line.
+
+The deltas are the same four as everywhere else. A relation marked `removed` is one the change deleted, and its `label` is where to say what it used to mean.
+
+A view may scope `tables`, a walkthrough step may focus them, and a cite may name a table or a column: `{ "kind": "table", "table": "subscription" }` or `{ "kind": "column", "table": "subscription", "column": "org_id" }`.
+
+The validator checks that every table sits in a declared store, that no table lists a column twice, that every relation ends on a column its table has, and that a document carrying a data model declares the lens. A stored map never carries one: a data model shows the tables one change touched, and a map describes a system.
 
 ## Walkthroughs
 
@@ -65,10 +111,11 @@ walkthrough: {
       },
     },
     {
-      id: "blast-radius",
-      heading: "4 parts added, 2 removed, across 3 lanes",
-      body: "A 2,000-person broadcast used to make 2,000 calls to Postmark. It now makes 4.",
-      stage: { kind: "view", view: "overview" },
+      id: "old-path-goes-dark",
+      heading: "processBroadcast and sendSingleEmail removed",
+      body: "sendBroadcastBulk does their job for whole batches.",
+      stage: { kind: "view", view: "retired-path" },
+      focus: { kind: "selection", nodes: ["process-broadcast", "send-single-email"] },
     },
   ],
 }
@@ -150,7 +197,7 @@ A stored map describes a system rather than a change, so everything in it is `un
 ```yaml
 # .github/pr-lens.yml
 schemaVersion: 0.1.0
-lenses: [architecture, data-flow]
+lenses: [architecture, data-flow, data-model]
 branding: true
 glossary: docs/CONTEXT.md#Language
 github:
@@ -221,6 +268,7 @@ They tell one story: a real refactor that moved broadcast sending from one Postm
 - **`postmark-refactor.graph.json`** is the canonical document: the pull request itself, across three lanes, exercising all four delta states, a hero edge, a seven-step data flow with returns and a repeated batch step, a nested drill-down tree, and a six-step walkthrough that stages both a view and a flow. Downstream renderer goldens are measured against it.
 - **`broadcast-baseline.graph.json`** is the stored map of that subsystem as `main` stood before the change, and **`broadcast-baseline.patch.json`** carries it to the merged state, the transition `applyPatchDoc` performs.
 - **`payload.graph.json`** is the pull-request document with sample traffic on six of its seven flow steps: both sides on the batch call, a `before` that differs from its `sample`, a `void` response, and one step left bare.
+- **`billing-org.graph.json`** is the data-model reference: billing moves from the person to the organization, with two tables arriving, a key leaving one table for another, a dropped column, a widened type, and a walkthrough that stages the data-model view.
 - **`postmark-refactor.render-manifest.json`** is what rendering the pull-request document produces, **`pr-lens.config.json`** a repository's corrections, and **`minimal.graph.json`** the smallest document that validates.
 
 ## Versioning
@@ -228,6 +276,10 @@ They tell one story: a real refactor that moved broadcast sending from one Postm
 `SCHEMA_VERSION` is the contract version, and it moves independently of this package's version. A release that changes no contract, a documentation fix or another patch, ships a new package version and leaves `SCHEMA_VERSION` where it stands, so a document written against the older string keeps parsing. A minor release only adds optional fields or widens an enum, and a parser accepts every minor from `0.1` up to its own: a document stored against `0.1.1` still opens on a `0.2.0` parser, and a `0.3.0` document is refused by one until the package that reads it ships. A major release may remove or retype a field.
 
 Contract `0.2.0` added `payload` on a flow step: sample traffic, as JSON values, for a step that moves data.
+
+Contract `0.3.0` added the `data-model` lens and `dataModel` on a document: the tables a change touched and the keys between them, with `tables` in view scopes and step focuses and `table` and `column` cites.
+
+Contract `0.3.1` added `walkthrough` to a render manifest: the walkthrough embed, one entry per half of the theme pair, beside the view assets.
 
 ---
 

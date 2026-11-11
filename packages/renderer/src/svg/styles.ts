@@ -1,5 +1,5 @@
 import { assertNever } from "@coldtea/pr-lens-schema";
-import type { Delta, FlowMessage, GraphEdge } from "@coldtea/pr-lens-schema";
+import type { Delta, FlowMessage, GraphEdge, Relation } from "@coldtea/pr-lens-schema";
 import { MONO_STACK } from "../text.js";
 import type { Palette } from "../theme.js";
 import type { Attributes } from "./primitives.js";
@@ -103,6 +103,13 @@ export const edgeAttributes = (edge: GraphEdge, palette: Palette): Attributes =>
       return assertNever(edge.emphasis);
   }
 };
+
+/** A key between tables: an edge, dotted when nothing enforces it. */
+export const relationAttributes = (relation: Relation, palette: Palette): Attributes => ({
+  ...strokeAttributes(relation.delta, palette),
+  ...(relation.delta === "unchanged" ? { opacity: 0.82 } : {}),
+  ...(relation.enforced ? {} : { "stroke-dasharray": "2 4" }),
+});
 
 export const messageAttributes = (message: FlowMessage, palette: Palette): Attributes => {
   const attributes = {

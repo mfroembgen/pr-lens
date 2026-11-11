@@ -32,6 +32,10 @@ const citedPlace = (ref: CiteRef): string => {
       return `flow '${ref.flow}'`;
     case "file":
       return `file '${ref.path}'`;
+    case "table":
+      return `table '${ref.table}'`;
+    case "column":
+      return `column '${ref.column}' of table '${ref.table}'`;
     default:
       return assertNever(ref, "Unhandled cite ref");
   }
@@ -109,6 +113,52 @@ export const graphIntegrityIssues = (doc: GraphDoc): SchemaIssue[] => {
   if (doc.flows.length > 0 && !lenses.has("data-flow"))
     broken("lenses", "document carries flows but does not declare the 'data-flow' lens");
 
+  const tableIds = new Set(doc.dataModel?.tables.map((table) => table.id) ?? []);
+  if (doc.dataModel !== undefined) {
+    const model = doc.dataModel;
+    const storeIds = new Set(model.stores.map((store) => store.id));
+    const columnsByTable = new Map(
+      model.tables.map((table) => [table.id, new Set(table.columns.map((column) => column.name))]),
+    );
+
+    for (const id of duplicates(model.stores.map((store) => store.id)))
+      duplicate("dataModel.stores", `duplicate store id '${id}'`);
+    for (const id of duplicates(model.tables.map((table) => table.id)))
+      duplicate("dataModel.tables", `duplicate table id '${id}'`);
+    for (const id of duplicates(model.relations.map((relation) => relation.id)))
+      duplicate("dataModel.relations", `duplicate relation id '${id}'`);
+
+    model.tables.forEach((table, index) => {
+      if (!storeIds.has(table.store))
+        broken(
+          `dataModel.tables[${index}].store`,
+          `table '${table.id}' references unknown store '${table.store}'`,
+        );
+      for (const name of duplicates(table.columns.map((column) => column.name)))
+        duplicate(`dataModel.tables[${index}].columns`, `table '${table.id}' lists column '${name}' twice`);
+    });
+
+    model.relations.forEach((relation, index) => {
+      for (const end of ["from", "to"] as const) {
+        const { table, column } = relation[end];
+        const columns = columnsByTable.get(table);
+        if (columns === undefined)
+          broken(
+            `dataModel.relations[${index}].${end}.table`,
+            `relation '${relation.id}' references unknown table '${table}'`,
+          );
+        else if (!columns.has(column))
+          broken(
+            `dataModel.relations[${index}].${end}.column`,
+            `relation '${relation.id}' references column '${column}', which table '${table}' does not have`,
+          );
+      }
+    });
+
+    if (!lenses.has("data-model"))
+      broken("lenses", "document carries a data model but does not declare the 'data-model' lens");
+  }
+
   const views = flattenViews(doc.views, "views");
   for (const id of duplicates(views.map(({ view }) => view.id)))
     duplicate("views", `duplicate view id '${id}'`);
@@ -136,6 +186,7 @@ export const graphIntegrityIssues = (doc: GraphDoc): SchemaIssue[] => {
           ["nodes", "node", nodeIds],
           ["edges", "edge", edgeIds],
           ["flows", "flow", flowIds],
+          ["tables", "table", tableIds],
         ];
         for (const [collection, singular, known] of scoped) {
           selection[collection].forEach((id, index) => {
@@ -186,6 +237,7 @@ export const graphIntegrityIssues = (doc: GraphDoc): SchemaIssue[] => {
             ["lanes", "lane", laneIds],
             ["nodes", "node", nodeIds],
             ["edges", "edge", edgeIds],
+            ["tables", "table", tableIds],
           ];
           for (const [collection, singular, known] of focused) {
             focus[collection].forEach((id, memberIndex) => {
@@ -285,6 +337,14 @@ export const graphSnapshotIssues = (doc: GraphDoc): SchemaIssue[] => {
       path: "walkthrough",
       message:
         "a stored map carries a walkthrough, but a walkthrough narrates a change and a map describes a system",
+    });
+
+  if (doc.dataModel !== undefined)
+    issues.push({
+      code: "NOT_A_SNAPSHOT",
+      path: "dataModel",
+      message:
+        "a stored map carries a data model, but a data model shows the tables one change touched and a map describes a system",
     });
 
   for (const side of ["base", "head"] as const) {

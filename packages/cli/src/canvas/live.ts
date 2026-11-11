@@ -9,7 +9,7 @@ import {
   type View,
 } from "@coldtea/pr-lens-schema";
 
-import { readToken } from "../auth.js";
+import { readToken, TOKEN_ENV } from "../auth.js";
 import { readJsonFile } from "../io.js";
 import { readGraphDoc } from "../document.js";
 import type { Terminal } from "../terminal.js";
@@ -187,6 +187,7 @@ const flatViews = (views: readonly View[]): View[] => views.flatMap((view) => [v
 /** Every id the canvas answers to, spelled the way a live command spells it. */
 type Places = {
   components: Set<string>;
+  tables: Set<string>;
   edges: Set<string>;
   lanes: Set<string>;
   views: Set<string>;
@@ -195,6 +196,7 @@ type Places = {
 
 const placesOf = (doc: GraphDoc): Places => ({
   components: new Set(doc.nodes.map((node) => node.id)),
+  tables: new Set(doc.dataModel?.tables.map((table) => table.id) ?? []),
   edges: new Set(doc.edges.map((edge) => edge.id)),
   lanes: new Set(doc.lanes.map((lane) => lane.id)),
   views: new Set(flatViews(doc.views).map((view) => view.id)),
@@ -243,6 +245,7 @@ const focusProblems = (places: Places, focus: StepFocus, at: string): string[] =
       const missing = (field: string, ids: readonly string[], known: (id: string) => boolean, noun: string) =>
         ids.flatMap((id, index) => (known(id) ? [] : [`${at}.${field}[${index}]: no ${noun} "${id}"`]));
       return [
+        ...missing("tables", focus.tables, (id) => places.tables.has(id), "table"),
         ...missing("nodes", focus.nodes, (id) => places.components.has(id), "component"),
         ...missing("edges", focus.edges, (id) => places.edges.has(id), "edge"),
         ...missing("lanes", focus.lanes, (id) => places.lanes.has(id), "lane"),
@@ -356,6 +359,18 @@ const onlyPushed = (registry: CanvasRegistry): Registered => {
 /** One file per canvas, so another open or an `analyze` cannot overwrite the ids answers are checked against. */
 const fetchedDrawingPath = (id: string): string => `${WORKSPACE_DIR}/canvases/${id}.graph.json`;
 
+const matchesConfiguredApi = (api: string, apiFlag: unknown, env: Env): boolean => {
+  try {
+    return new URL(api).origin === new URL(readApi(apiFlag, env)).origin;
+  } catch {
+    return false;
+  }
+};
+
+/** `PR_LENS_TOKEN` belongs to the configured store; a link to another host only uses a sign-in saved for that host. */
+const envForOrigin = (env: Env, api: string, apiFlag: unknown): Env =>
+  matchesConfiguredApi(api, apiFlag, env) ? env : { ...env, [TOKEN_ENV]: undefined };
+
 /** Recorded like a view-link pull, so later commands can find it and check ids against it. */
 const fetchForOpen = async (
   registry: CanvasRegistry,
@@ -372,7 +387,7 @@ const fetchForOpen = async (
   const out = fetchedDrawingPath(id);
   const { fetched, recorded } = await pullCanvas(
     registry,
-    { api, id, writeToken, out, token: await readToken(env, api) },
+    { api, id, writeToken, out, token: await readToken(envForOrigin(env, api, apiFlag), api) },
     terminal,
   ).catch((error: unknown) => {
     throw privateOrMissing(error, id, api);
@@ -417,11 +432,12 @@ export const openLiveCommand = async (args: readonly string[], terminal: Termina
   const [drawing] = positionals;
   const ref = readString(values.canvas, "canvas");
   const { api, selected } = await openTarget(await readRegistry(), drawing, ref, values.api, terminal, env);
+  const scopedEnv = envForOrigin(env, api, values.api);
 
-  const target = await settlePendingRotation(api, selected, terminal, env);
+  const target = await settlePendingRotation(api, selected, terminal, scopedEnv);
   // No credential is fine: the app picks writer or reader, and refuses only a private canvas.
   const writeToken = target.entry.writeToken;
-  const opened = await openLive(api, target.id, writeToken ?? (await readToken(env, api))).catch((error: unknown) => {
+  const opened = await openLive(api, target.id, writeToken ?? (await readToken(scopedEnv, api))).catch((error: unknown) => {
     throw writeToken === undefined ? privateOrMissing(error, target.id, api) : error;
   });
 
@@ -483,15 +499,23 @@ const stageFor = (doc: GraphDoc | undefined, id: string | undefined): Stage => {
 const focusFor = (doc: GraphDoc | undefined, ids: readonly string[]): StepFocus => {
   if (ids.length === 0) return { kind: "all" };
   const places = doc === undefined ? undefined : placesOf(doc);
-  const focus = { kind: "selection" as const, lanes: new Array<string>(), nodes: new Array<string>(), edges: new Array<string>(), messages: new Array<string>() };
+  const focus = {
+    kind: "selection" as const,
+    lanes: new Array<string>(),
+    nodes: new Array<string>(),
+    edges: new Array<string>(),
+    messages: new Array<string>(),
+    tables: new Array<string>(),
+  };
   const unknown: string[] = [];
 
   for (const id of ids) {
     if (places === undefined || places.components.has(id)) focus.nodes.push(id);
+    else if (places.tables.has(id)) focus.tables.push(id);
     else if (places.edges.has(id)) focus.edges.push(id);
     else if (places.lanes.has(id)) focus.lanes.push(id);
     else if (hasMessage(places, id)) focus.messages.push(id);
-    else unknown.push(`--focus: no component, message, edge or lane "${id}"`);
+    else unknown.push(`--focus: no component, table, message, edge or lane "${id}"`);
   }
   if (places !== undefined && unknown.length > 0) throw unknownPlaces(unknown, validOf(places));
   return focus;
@@ -605,7 +629,7 @@ export const LIVE_USAGE = `  pr-lens canvas open <drawing>        open a tab tha
 
   pr-lens canvas answer <file|->       answer on the open canvas: { question, steps } as JSON
   pr-lens canvas show                  move the open canvas
-    --focus <id>                       a component, message (flow/message), edge or lane; repeat for more
+    --focus <id>                       a component, table, message (flow/message), edge or lane; repeat for more
     --diagram <view|flow>              the diagram to show (default the opening one)
     --open <flow/message>              open that message's payload rail
   pr-lens canvas fork <sketch.json>    draw what is inside a component, under the canvas

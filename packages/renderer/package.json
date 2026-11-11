@@ -1,6 +1,6 @@
 {
   "name": "@coldtea/pr-lens-renderer",
-  "version": "0.3.6",
+  "version": "0.5.0",
   "description": "The PR Lens renderer: a schema-valid graph document in, a self-contained animated SVG out.",
   "license": "MIT",
   "author": "Coldtea AI",
@@ -25,6 +25,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./walkthrough": {
+      "types": "./dist/walkthrough/index.d.ts",
+      "default": "./dist/walkthrough/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -41,7 +45,7 @@
   },
   "scripts": {
     "prepublishOnly": "bun run build",
-    "build": "rm -rf dist && tsrs -p tsconfig.build.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsrs -p tsconfig.build.json",
     "typecheck": "tsrs -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

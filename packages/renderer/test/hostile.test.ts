@@ -297,7 +297,7 @@ describe("a long flow animates one step at a time, in order", () => {
 describe("columns", () => {
   const layoutOf = (doc: GraphDoc) =>
     layoutArchitecture(
-      { lanes: doc.lanes, nodes: doc.nodes, edges: doc.edges, flows: doc.flows },
+      { lanes: doc.lanes, nodes: doc.nodes, edges: doc.edges, flows: doc.flows, stores: [], tables: [], relations: [] },
       doc.layout,
     );
 
@@ -384,7 +384,7 @@ describe("ordering does not depend on the machine's locale", () => {
       edges: [],
     });
     const placed = layoutArchitecture(
-      { lanes: doc.lanes, nodes: doc.nodes, edges: doc.edges, flows: doc.flows as Flow[] },
+      { lanes: doc.lanes, nodes: doc.nodes, edges: doc.edges, flows: doc.flows as Flow[], stores: [], tables: [], relations: [] },
       doc.layout,
     );
     expect(placed.nodes.map(({ node: placedNode }) => placedNode.id)).toEqual(["lower", "upper"]);

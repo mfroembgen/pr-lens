@@ -22,6 +22,9 @@ const scoped = (doc: GraphDoc) => ({
   nodes: doc.nodes,
   edges: doc.edges,
   flows: doc.flows,
+  stores: [],
+  tables: [],
+  relations: [],
 });
 
 const issueFixtures = ["label-clearance", "short-connection", "removed-route"].map((name) => ({

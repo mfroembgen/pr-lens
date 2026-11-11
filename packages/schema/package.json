@@ -1,7 +1,7 @@
 {
   "name": "@coldtea/pr-lens-schema",
-  "version": "0.8.0",
-  "description": "The PR Lens contract: versioned schemas for architecture / data-flow graph documents, baseline patches, config and render manifests.",
+  "version": "0.10.0",
+  "description": "The PR Lens contract: versioned schemas for architecture / data-flow / data-model graph documents, baseline patches, config and render manifests.",
   "license": "MIT",
   "author": "Coldtea AI",
   "repository": {
@@ -48,7 +48,7 @@
   },
   "scripts": {
     "prepublishOnly": "bun run build",
-    "build": "rm -rf dist && tsrs -p tsconfig.build.json && bun run schema:emit",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsrs -p tsconfig.build.json && bun run schema:emit",
     "typecheck": "tsrs -p tsconfig.json --noEmit",
     "schema:emit": "bun scripts/emit-artifacts.ts",
     "test": "vitest run",

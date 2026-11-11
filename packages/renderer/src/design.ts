@@ -71,6 +71,32 @@ export const BADGE_RADIUS = 8;
 /** How far the badge row rides above the top edge of the card it labels. */
 export const BADGE_RISE = 8;
 
+/** A table card: a node-sized header, a rule, then one row per column. */
+export const TABLE_ROW_HEIGHT = 20;
+export const TABLE_ROWS_PADDING_Y = 6;
+export const TABLE_ROW_TEXT_SIZE = 11;
+export const TABLE_ROW_TYPE_SIZE = 9.5;
+/**
+ * A tall table folds: keys, changed columns and relation ends always draw,
+ * unchanged ones up to a few, the whole card up to a ceiling, and one closing
+ * row says how many were left out. A fold that would hide only a couple of
+ * rows is not worth its own row.
+ */
+export const TABLE_ROWS_MAX = 24;
+export const TABLE_UNCHANGED_ROWS_MAX = 8;
+export const TABLE_FOLD_MIN_HIDDEN = 4;
+/** The fold row: a breath after the last column, the dashed rule, then a row for the count. */
+export const TABLE_FOLD_GAP = TABLE_ROWS_PADDING_Y;
+export const TABLE_FOLD_HEIGHT = TABLE_FOLD_GAP + TABLE_ROW_HEIGHT;
+export const KEY_CHIP_WIDTH = 24;
+export const KEY_CHIP_HEIGHT = 14;
+export const KEY_CHIP_GAP = 8;
+/** A relation that skips a lane crosses above the lanes, one band per route. */
+export const OVER_PITCH = 16;
+export const OVER_CLEARANCE = 10;
+/** Arrows landing on one column fan out this far at most, and never past the row. */
+export const PORT_FAN_MAX = 5;
+
 export const PILL_HEIGHT = 15;
 export const PILL_PADDING_X = 8;
 export const PILL_TEXT_SIZE = 9.5;

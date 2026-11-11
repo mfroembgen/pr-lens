@@ -132,11 +132,11 @@ describe("paths into a sample", () => {
 });
 
 describe("the readable contract range", () => {
-  it.each(["0.1.0", "0.1.1", "0.2.0", "0.2.7"])("reads %s", (version) => {
+  it.each(["0.1.0", "0.1.1", "0.2.0", "0.2.7", "0.3.0"])("reads %s", (version) => {
     expect(isSupportedVersion(version)).toBe(true);
   });
 
-  it.each(["0.0.1", "0.3.0", "1.0.0", "0.1", "0.10.0"])("refuses %s", (version) => {
+  it.each(["0.0.1", "0.4.0", "1.0.0", "0.1", "0.10.0"])("refuses %s", (version) => {
     expect(isSupportedVersion(version)).toBe(false);
   });
 
@@ -148,7 +148,7 @@ describe("the readable contract range", () => {
 
   it("refuses a document from a contract this package does not know", () => {
     const doc = clone(payloadGraphInput);
-    doc.schemaVersion = "0.3.0";
+    doc.schemaVersion = "0.4.0";
     expect(expectRejected(doc).code).toBe("UNSUPPORTED_SCHEMA_VERSION");
   });
 });

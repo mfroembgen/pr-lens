@@ -32,6 +32,21 @@ export const SchemaVersionField = z
 export const Label = z.string().min(1).max(120).describe("Short display label.");
 
 /** Prose shown in drill-down bodies; kept short enough to stay scannable. */
+/**
+ * The name of a type, as a schema spells it: `uuid`, `text[]`, `numeric(5,4)`,
+ * `timestamp with time zone`, `Map<String, Int>`, `date-time`. A quote, an
+ * equals sign, a slash, a colon or a `--` has no place in a type name and
+ * every place in a default, a literal, a connection string or a comment, so
+ * a value that carries one is refused rather than drawn: the picture shows
+ * the shape of the data, never the data.
+ */
+export const TypeName = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^(?!.*--)[A-Za-z_][A-Za-z0-9_ .,?!<>()[\]|-]*$/, "must be a type name, with no default, literal or value in it")
+  .describe("A type as the schema spells it, e.g. uuid, text[], numeric(5,4). Never a default or a value.");
+
 export const Summary = z
   .string()
   .min(1)
@@ -87,7 +102,7 @@ export const FullSha = z
  * version may introduce further lenses, and consumers must treat an unknown
  * lens as "skip this view" rather than as a hard failure.
  */
-export const Lens = z.enum(["architecture", "data-flow"]).describe("Rendering lens.");
+export const Lens = z.enum(["architecture", "data-flow", "data-model"]).describe("Rendering lens.");
 export type Lens = z.infer<typeof Lens>;
 
 export const LENSES = Lens.options;

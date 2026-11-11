@@ -94,3 +94,15 @@ test.each([openai, compatible])("$id keeps JSON mode unless explicitly disabled"
   expect(await sentBody(provider)).toHaveProperty("response_format", { type: "json_object" });
   expect(await sentBody(provider, undefined, "none")).not.toHaveProperty("response_format");
 });
+
+test.each([gemini, openai, compatible])("$id refuses to follow redirects that could forward the API key", async (provider) => {
+  const fetchMock = vi.fn<typeof fetch>(
+    async () => new Response("", { status: 302, statusText: "Found", headers: { location: "https://evil.example/collect" } }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(
+    completeJson(provider, { system: "s", turns: [{ role: "user", text: "t" }], maxOutputTokens: 10, temperature: 0 }),
+  ).rejects.toThrow(expect.objectContaining({ code: "PROVIDER_FAILED" }));
+  expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe("manual");
+});

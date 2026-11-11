@@ -1,14 +1,15 @@
-import { GraphDoc, LiveCommand, ViewerLook } from "@coldtea/pr-lens-schema"
+import { GraphDoc, Lens, LiveCommand, ViewerLook } from "@coldtea/pr-lens-schema"
 import { z } from "zod"
 
 const Box = z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })
 const Themes = z.object({ light: z.string(), dark: z.string() })
 const Atlas = z.object({
   lanes: z.record(z.string(), Box), nodes: z.record(z.string(), Box), edges: z.record(z.string(), Box),
+  tables: z.record(z.string(), Box), columns: z.record(z.string(), z.record(z.string(), Box)),
   messages: z.record(z.string(), z.record(z.string(), Box)),
 })
 const Tile = z.object({
-  id: z.string(), title: z.string(), lens: z.enum(["architecture", "data-flow"]), crumbs: z.array(z.string()),
+  id: z.string(), title: z.string(), lens: Lens, crumbs: z.array(z.string()),
   hero: z.boolean(), width: z.number(), height: z.number(), renders: Themes, images: Themes, svg: Themes, atlas: Atlas,
 })
 const PageSchema = z.object({

@@ -10,7 +10,7 @@ const draw = (doc: GraphDoc): string => render(doc, { lens: "architecture", them
 
 const layoutOf = (doc: GraphDoc) =>
   layoutArchitecture(
-    { lanes: doc.lanes, nodes: doc.nodes, edges: doc.edges, flows: doc.flows },
+    { lanes: doc.lanes, nodes: doc.nodes, edges: doc.edges, flows: doc.flows, stores: [], tables: [], relations: [] },
     doc.layout,
   );
 

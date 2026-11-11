@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { broadcastBaselineGraph, goldenDocuments, postmarkRefactorGraph } from "../src/examples/index.js";
+import { billingOrgGraph, broadcastBaselineGraph, goldenDocuments, postmarkRefactorGraph } from "../src/examples/index.js";
 import { DELTAS } from "../src/primitives.js";
 import { buildExamples, buildJsonSchemas } from "../scripts/artifacts.js";
 
@@ -48,6 +48,16 @@ describe("golden documents", () => {
       ]),
     );
     expect([...lenses].sort()).toEqual(["architecture", "data-flow"]);
+  });
+
+  it("exercises every column state and a relation of every delta in the data model", () => {
+    const columns = new Set(
+      billingOrgGraph.dataModel!.tables.flatMap((table) => table.columns.map((column) => column.delta)),
+    );
+    expect([...columns].sort()).toEqual([...DELTAS].sort());
+    const relations = new Set(billingOrgGraph.dataModel!.relations.map((relation) => relation.delta));
+    expect([...relations].sort()).toEqual(["added", "removed", "unchanged"]);
+    expect(billingOrgGraph.walkthrough?.steps.every((step) => step.stage?.kind === "view")).toBe(true);
   });
 
   it("describes a system rather than a change in the stored baseline", () => {

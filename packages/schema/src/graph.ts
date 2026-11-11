@@ -20,6 +20,7 @@ import {
   SchemaVersionField,
   Sha,
   Summary,
+  TypeName,
 } from "./primitives.js";
 
 /**
@@ -247,6 +248,94 @@ export const Flow = z
   .describe("An ordered message sequence for the data-flow lens.");
 export type Flow = z.infer<typeof Flow>;
 
+export const ColumnKey = z.enum(["primary", "foreign", "index"]);
+export type ColumnKey = z.infer<typeof ColumnKey>;
+
+export const TableColumn = z
+  .strictObject({
+    name: Label.describe("Column name, unique within its table. Relations name it."),
+    type: TypeName,
+    key: ColumnKey.optional().describe(
+      "primary for the table's own key, foreign for a column that holds another table's key, index for an index row.",
+    ),
+    delta: Delta,
+    previousType: TypeName.optional().describe("The type before this change, when the change altered it."),
+  })
+  .describe("One column of a table.");
+export type TableColumn = z.infer<typeof TableColumn>;
+
+export const Store = z
+  .strictObject({
+    id: Id,
+    label: Label,
+    platform: Label.optional().describe("What holds the store, e.g. Postgres, MongoDB, Redis."),
+    order: z
+      .int()
+      .min(0)
+      .max(64)
+      .optional()
+      .describe("Left-to-right placement. Ties fall back to array order."),
+    delta: Delta.optional().describe("Set only when the store itself is new or gone."),
+  })
+  .describe("A database, schema or namespace: the lane a table sits in.");
+export type Store = z.infer<typeof Store>;
+
+export const Table = z
+  .strictObject({
+    id: Id,
+    label: Label,
+    store: Id.describe("Id of the store this table belongs to."),
+    name: Label.optional().describe("The physical name, e.g. billing.subscriptions, when it differs from the label."),
+    delta: Delta,
+    columns: z.array(TableColumn).min(1).max(64),
+    summary: Summary.optional().describe("Body text for this table's drill-down section."),
+    files: z
+      .array(FileRef)
+      .max(64)
+      .default([])
+      .describe("The migration and model files that define it, used to build diff permalinks."),
+    badges: z
+      .array(Label)
+      .max(6)
+      .default([])
+      .describe("Extra chips on the card, beyond the delta badge the renderer adds."),
+  })
+  .describe("A table, collection or key family in a store.");
+export type Table = z.infer<typeof Table>;
+
+export const RelationEnd = z
+  .strictObject({
+    table: Id,
+    column: Label.describe("A column of that table, by name."),
+  })
+  .describe("One end of a relation.");
+export type RelationEnd = z.infer<typeof RelationEnd>;
+
+export const Relation = z
+  .strictObject({
+    id: Id,
+    from: RelationEnd.describe("The column that holds the key."),
+    to: RelationEnd.describe("The column it points at."),
+    delta: Delta,
+    label: Label.optional().describe("Text on the line, e.g. what the key used to mean."),
+    enforced: z
+      .boolean()
+      .default(true)
+      .describe("False for a reference nothing enforces, such as one across stores."),
+  })
+  .describe("A key from one table's column to another's.");
+export type Relation = z.infer<typeof Relation>;
+
+export const DataModel = z
+  .strictObject({
+    stores: z.array(Store).min(1).max(16),
+    tables: z.array(Table).min(1).max(64),
+    relations: z.array(Relation).max(256).default([]),
+  })
+  .describe("The tables a change touches and the keys between them, for the data-model lens.");
+export type DataModel = z.infer<typeof DataModel>;
+export type DataModelInput = z.input<typeof DataModel>;
+
 export const StatChip = z
   .strictObject({
     label: Label,
@@ -287,6 +376,7 @@ export const ViewScope = z
         nodes: z.array(Id).max(256).default([]),
         edges: z.array(Id).max(512).default([]),
         flows: z.array(Id).max(32).default([]),
+        tables: z.array(Id).max(64).default([]),
       })
       .meta({
         anyOf: [
@@ -294,11 +384,17 @@ export const ViewScope = z
           { properties: { nodes: { minItems: 1 } }, required: ["nodes"] },
           { properties: { edges: { minItems: 1 } }, required: ["edges"] },
           { properties: { flows: { minItems: 1 } }, required: ["flows"] },
+          { properties: { tables: { minItems: 1 } }, required: ["tables"] },
         ],
       })
       .refine(
         (scope) =>
-          scope.lanes.length + scope.nodes.length + scope.edges.length + scope.flows.length > 0,
+          scope.lanes.length +
+            scope.nodes.length +
+            scope.edges.length +
+            scope.flows.length +
+            scope.tables.length >
+          0,
         { message: "a selection must name at least one element" },
       ),
   ])
@@ -326,7 +422,14 @@ export type ViewInput = {
   summary?: string;
   scope?:
     | { kind: "all" }
-    | { kind: "selection"; lanes?: string[]; nodes?: string[]; edges?: string[]; flows?: string[] };
+    | {
+        kind: "selection";
+        lanes?: string[];
+        nodes?: string[];
+        edges?: string[];
+        flows?: string[];
+        tables?: string[];
+      };
   defaultOpen?: boolean;
   children?: ViewInput[];
 };
@@ -385,6 +488,7 @@ export const StepFocus = z
         nodes: z.array(Id).max(256).default([]),
         edges: z.array(Id).max(512).default([]),
         messages: z.array(Id).max(64).default([]).describe("Steps of the flow on the stage."),
+        tables: z.array(Id).max(64).default([]),
       })
       .meta({
         anyOf: [
@@ -392,11 +496,17 @@ export const StepFocus = z
           { properties: { nodes: { minItems: 1 } }, required: ["nodes"] },
           { properties: { edges: { minItems: 1 } }, required: ["edges"] },
           { properties: { messages: { minItems: 1 } }, required: ["messages"] },
+          { properties: { tables: { minItems: 1 } }, required: ["tables"] },
         ],
       })
       .refine(
         (focus) =>
-          focus.lanes.length + focus.nodes.length + focus.edges.length + focus.messages.length > 0,
+          focus.lanes.length +
+            focus.nodes.length +
+            focus.edges.length +
+            focus.messages.length +
+            focus.tables.length >
+          0,
         { message: "a selection must name at least one element" },
       ),
   ])
@@ -415,6 +525,12 @@ export const CiteRef = z
     z.strictObject({ kind: z.literal("view"), view: Id.describe("Id of the view the words name.") }),
     z.strictObject({ kind: z.literal("flow"), flow: Id.describe("Id of the flow the words name.") }),
     z.strictObject({ kind: z.literal("file"), path: RepositoryPath }),
+    z.strictObject({ kind: z.literal("table"), table: Id.describe("Id of the table the words name.") }),
+    z.strictObject({
+      kind: z.literal("column"),
+      table: Id.describe("Id of the table that holds the column."),
+      column: Label.describe("The column, by name."),
+    }),
   ])
   .describe("The place some words of a walkthrough step name.");
 export type CiteRef = z.infer<typeof CiteRef>;
@@ -536,6 +652,9 @@ export const GraphDoc = z
     nodes: z.array(GraphNode).min(1).max(256),
     edges: z.array(GraphEdge).max(512).default([]),
     flows: z.array(Flow).max(16).default([]),
+    dataModel: DataModel.optional().describe(
+      "The tables this change touches, for the data-model lens. Present only when the change touched a schema.",
+    ),
     stats: Stats.optional(),
     views: z.array(View).max(32).default([]),
     walkthrough: Walkthrough.optional(),

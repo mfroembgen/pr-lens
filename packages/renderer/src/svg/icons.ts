@@ -128,5 +128,25 @@ const kindGlyph = (kind: NodeKind, cx: number, cy: number, styles: SvgStyles): s
   }
 };
 
+/** A table: a box with a header rule and a column divider. */
+export const tableGlyph = (cx: number, cy: number, styles: SvgStyles): string =>
+  wrap(
+    "g",
+    {},
+    lines([
+      tag("rect", {
+        class: "glyph-stroke",
+        x: coord(cx - 7),
+        y: coord(cy - 6),
+        width: 14,
+        height: 12,
+        rx: 2,
+        ...styles.glyphStroke,
+      }),
+      tag("path", { class: "glyph-stroke", d: `M${coord(cx - 7)},${coord(cy - 2)} h14`, ...styles.glyphStroke }),
+      tag("path", { class: "glyph-stroke", d: `M${coord(cx - 2)},${coord(cy - 2)} v8`, ...styles.glyphStroke }),
+    ]),
+  );
+
 export const glyphGroup = (kind: NodeKind, cx: number, cy: number, styles: SvgStyles): string =>
   wrap("g", {}, kindGlyph(kind, cx, cy, styles));

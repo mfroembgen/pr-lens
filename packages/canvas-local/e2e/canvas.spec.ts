@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { once } from "node:events";
 import { z } from "zod";
 import minimal from "../../schema/examples/minimal.graph.json" with { type: "json" };
+import billingExample from "../../schema/examples/billing-org.graph.json" with { type: "json" };
 import payloadExample from "../../schema/examples/payload.graph.json" with { type: "json" };
 import { GraphDoc } from "@coldtea/pr-lens-schema";
 
@@ -297,4 +298,48 @@ test("trusted network mode supports anonymous publishing, source diffs and paire
     await stop();
     await start();
   }
+});
+
+
+test("a data-model canvas draws tables and focuses its walkthrough", async ({ page, request }) => {
+  const canvas = await mint(request);
+  const graph = GraphDoc.parse({
+    ...billingExample,
+    lenses: ["data-model"],
+    views: [],
+    walkthrough: { steps: billingExample.walkthrough.steps.map((step) => ({ ...step, stage: undefined })) },
+  });
+  const pushed = await request.put(`${origin}/api/canvas/${canvas.id}`, {
+    headers: { authorization: `Bearer ${canvas.writeToken}`, "X-PR-Lens-Publish-Token": publishing, "if-match": "0" },
+    data: graph,
+  });
+  expect(pushed.status()).toBe(200);
+  await page.goto(`${origin}/c/${canvas.id}?rev=1`);
+  await expect(page.locator(".title strong")).toHaveText(graph.title);
+  await expect(page.locator(".tile svg")).toHaveCount(1);
+  await page.getByRole("button", { name: "Walkthrough", exact: false }).click();
+  await expect(page.getByText("Organizations arrive", { exact: true })).toBeVisible();
+  await expect(page.locator(".rim")).toHaveCount(2);
+});
+
+
+test("an unstaged walkthrough step returns from the data model to the opening diagram", async ({ page, request }) => {
+  const canvas = await mint(request);
+  const graph = GraphDoc.parse({
+    ...billingExample,
+    walkthrough: { steps: [billingExample.walkthrough.steps[0], {
+      id: "billing-service", heading: "Billing reads the organization", body: "The billing service reads the organization.",
+      focus: { kind: "selection", nodes: ["billing-service"] },
+    }] },
+  });
+  expect((await request.put(`${origin}/api/canvas/${canvas.id}`, {
+    headers: { authorization: `Bearer ${canvas.writeToken}`, "X-PR-Lens-Publish-Token": publishing, "if-match": "0" },
+    data: graph,
+  })).status()).toBe(200);
+  await page.goto(`${origin}/c/${canvas.id}?rev=1`);
+  await page.getByRole("button", { name: "Walkthrough", exact: false }).click();
+  await expect(page.locator(".rim")).toHaveCount(2);
+  await page.getByRole("button", { name: "Next step", exact: true }).click();
+  await expect(page.getByText("Billing reads the organization", { exact: true })).toBeVisible();
+  await expect(page.locator(".rim")).toHaveCount(1);
 });

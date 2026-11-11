@@ -1,13 +1,15 @@
 import {
+  billingOrgGraph,
   broadcastBaselineGraph,
   minimalGraph,
   postmarkRefactorGraph,
 } from "@coldtea/pr-lens-schema/examples";
-import { parseRenderManifest } from "@coldtea/pr-lens-schema";
+import { parseGraphDoc, parseRenderManifest } from "@coldtea/pr-lens-schema";
 import { describe, expect, it } from "vitest";
 import { PrLensRenderError, render, renderAll, THEMES } from "../src/index.js";
 import { cjkGraph } from "./cjk.js";
 import { expectGolden } from "./goldens.js";
+import { tallTablesGraph } from "./tall-tables.js";
 
 describe("golden renders", () => {
   for (const theme of THEMES) {
@@ -172,5 +174,73 @@ describe("renderAll", () => {
     expect(() => parseRenderManifest(JSON.parse(JSON.stringify(manifest)))).not.toThrow();
     expect(manifest.graph.contentHash).toMatch(/^[0-9a-f]{32}$/);
     expect(manifest.assets).toHaveLength(assets.length);
+  });
+});
+
+describe("the data-model lens", () => {
+  for (const theme of THEMES)
+    it(`draws the billing move, ${theme}`, () => {
+      const { svg, animated } = render(billingOrgGraph, { lens: "data-model", theme });
+      expect(animated).toBe(false);
+      expectGolden(`billing-org.data-model.${theme}.svg`, svg);
+    });
+
+  it("folds the tall tables, dark", () => {
+    expectGolden("tall-tables.data-model.dark.svg", render(tallTablesGraph, { lens: "data-model", theme: "dark" }).svg);
+  });
+
+  it("refuses a document that does not declare it", () => {
+    const undeclared = parseGraphDoc({
+      ...billingOrgGraph,
+      lenses: ["architecture"],
+      dataModel: undefined,
+      views: billingOrgGraph.views.filter((view) => view.lens === "architecture"),
+      walkthrough: undefined,
+    });
+    expect(() => render(undeclared, { lens: "data-model", theme: "dark" })).toThrow(
+      expect.objectContaining({ code: "LENS_NOT_DECLARED" }),
+    );
+  });
+
+  it("has nothing to draw when the view selects no table", () => {
+    const nodesOnly = parseGraphDoc({
+      ...billingOrgGraph,
+      views: [{ id: "service", title: "Service", lens: "data-model", scope: { kind: "selection", nodes: ["billing-service"] } }],
+      walkthrough: undefined,
+    });
+    expect(() => render(nodesOnly, { lens: "data-model", theme: "dark", view: "service" })).toThrow(
+      expect.objectContaining({ code: "NOTHING_TO_RENDER" }),
+    );
+  });
+
+  it("draws a selection of tables with the stores they sit in and the keys that stay whole", () => {
+    const pair = parseGraphDoc({
+      ...billingOrgGraph,
+      views: [{ id: "pair", title: "Pair", lens: "data-model", scope: { kind: "selection", tables: ["subscription", "organization"] } }],
+      walkthrough: undefined,
+    });
+    const { atlas } = render(pair, { lens: "data-model", theme: "dark", view: "pair" });
+    expect(Object.keys(atlas.tables).sort()).toEqual(["organization", "subscription"]);
+    expect(Object.keys(atlas.lanes).sort()).toEqual(["billing", "workspace"]);
+    expect(Object.keys(atlas.edges)).toEqual(["subscription-org"]);
+  });
+
+  it("is emitted by renderAll only when the document carries a model", () => {
+    const { assets } = renderAll({ ...billingOrgGraph, views: [], walkthrough: undefined });
+    expect(assets.map(({ asset }) => asset.lens)).toEqual([
+      "architecture",
+      "architecture",
+      "data-model",
+      "data-model",
+    ]);
+    const { assets: without } = renderAll({ ...postmarkRefactorGraph, views: [] });
+    expect(without.some(({ asset }) => asset.lens === "data-model")).toBe(false);
+  });
+
+  it("draws the same bytes across a round trip through JSON", () => {
+    const reparsed = parseGraphDoc(JSON.parse(JSON.stringify(billingOrgGraph)));
+    expect(render(reparsed, { lens: "data-model", theme: "dark" }).svg).toBe(
+      render(billingOrgGraph, { lens: "data-model", theme: "dark" }).svg,
+    );
   });
 });

@@ -39,9 +39,15 @@ const narrowScope = (
         nodes: scope.nodes.filter(survives.node),
         edges: scope.edges.filter(survives.edge),
         flows: scope.flows.filter(survives.flow),
+        // Corrections address nodes; a table named here stays as it was.
+        tables: scope.tables,
       };
       const total =
-        narrowed.lanes.length + narrowed.nodes.length + narrowed.edges.length + narrowed.flows.length;
+        narrowed.lanes.length +
+        narrowed.nodes.length +
+        narrowed.edges.length +
+        narrowed.flows.length +
+        narrowed.tables.length;
       return total > 0 ? narrowed : undefined;
     }
     default:

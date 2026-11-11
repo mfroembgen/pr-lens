@@ -1,10 +1,12 @@
 import { beforeEach, expect, test } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-import { API, GOLDEN } from "./helpers/canvas.js";
-import { FIRST, TOKEN1, refuse, setupCanvasAppTest } from "./helpers/canvas-app.js";
+import { billingOrgGraph } from "@coldtea/pr-lens-schema/examples";
 
-const { output, app, fakeFetch, fetchMock, invoke, registry, place } = setupCanvasAppTest();
+import { API, GOLDEN, REGISTRY } from "./helpers/canvas.js";
+import { ACCOUNT, FIRST, TOKEN1, refuse, setupCanvasAppTest } from "./helpers/canvas-app.js";
+
+const { output, app, fakeFetch, fetchMock, invoke, registry, place, env } = setupCanvasAppTest();
 
 const SESSION = "s".padEnd(22, "s");
 const SECRET = "k".padEnd(22, "k");
@@ -155,7 +157,7 @@ test("show sorts its focus by what the drawing calls each id", async () => {
     {
       kind: "show",
       stage: { kind: "flow", flow: "send-pipeline" },
-      focus: { kind: "selection", lanes: [], nodes: ["queue-route"], edges: [], messages: ["send-pipeline/enqueue"] },
+      focus: { kind: "selection", lanes: [], nodes: ["queue-route"], edges: [], messages: ["send-pipeline/enqueue"], tables: [] },
     },
   ]);
   expect(output.out).toEqual([`✓ moved ${FIRST}`, "  the reader's tab is following along"]);
@@ -336,4 +338,51 @@ test("a refused reader's open says when to try again", async () => {
   expect(await invoke("canvas", "open", "--canvas", THEIRS, "--no-browser", "--api", API)).toBe(1);
   expect(output.err.join("\n")).toContain("canvas.test is rate limiting this client until 2026-09-25T17:00:00.000Z [CANVAS_RATE_LIMITED]");
   expect((await registry())[THEIRS]).not.toHaveProperty("live");
+});
+
+test("PR_LENS_TOKEN is not sent to a foreign origin in a pasted link unless the configured origin matches it", async () => {
+  place(THEIRS, { document: await golden() });
+  env().PR_LENS_API_URL = "https://other.test";
+  env().PR_LENS_TOKEN = ACCOUNT;
+
+  expect(await invoke("canvas", "open", "--canvas", `${API}/c/${THEIRS}`, "--no-browser")).toBe(0);
+  expect(app.seen.map((seen) => seen.headers.get("authorization"))).toEqual([null, null]);
+
+  // A pending rotation on that foreign entry without a writeToken must not use PR_LENS_TOKEN either.
+  const current = JSON.parse(await readFile(REGISTRY, "utf8"));
+  current.canvases[THEIRS].pending = "pending-token-22-chars";
+  await writeFile(REGISTRY, JSON.stringify(current), "utf8");
+  app.seen = [];
+  expect(await invoke("canvas", "open", "--canvas", `${API}/c/${THEIRS}`, "--no-browser")).toBe(1);
+  expect(app.seen.map(({ path, headers }) => ({ path, authorization: headers.get("authorization") }))).toEqual([
+    { path: "/api/access", authorization: null },
+  ]);
+
+  const SECOND = "3".padStart(22, "0");
+  place(SECOND, { document: await golden() });
+  env().PR_LENS_API_URL = `${API}:443/`;
+  app.seen = [];
+
+  expect(await invoke("canvas", "open", "--canvas", `${API}/c/${SECOND}`, "--no-browser")).toBe(0);
+  expect(app.seen.map((seen) => seen.headers.get("authorization"))).toEqual([
+    `Bearer ${ACCOUNT}`,
+    `Bearer ${ACCOUNT}`,
+  ]);
+});
+
+
+test("show focuses data-model tables and rejects unknown table selections locally", async () => {
+  await writeFile("drawn.graph.json", JSON.stringify(billingOrgGraph));
+  await pushAndOpen();
+  expect(await invoke("canvas", "show", "--diagram", "data-model", "--focus", "organization", "--api", API)).toBe(0);
+  expect(live.sent).toMatchObject([{ kind: "show", focus: { tables: ["organization"] } }]);
+
+  await writeFile("answer.json", JSON.stringify({ question: "Which table changed?", steps: [{
+    heading: "Organizations arrive", focus: { kind: "selection", tables: ["missing-table"] },
+    paragraphs: [{ parts: [{ text: "The organization table changed." }] }],
+  }] }));
+  app.seen = [];
+  expect(await invoke("canvas", "answer", "answer.json", "--api", API)).toBe(1);
+  expect(output.err.join("\n")).toContain('no table "missing-table"');
+  expect(app.seen).toEqual([]);
 });

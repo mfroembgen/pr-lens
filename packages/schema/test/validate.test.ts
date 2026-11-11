@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { postmarkRefactorGraphInput } from "../src/examples/postmark-refactor.js";
 import { minimalGraphInput } from "../src/examples/minimal.js";
+import { billingOrgGraphInput } from "../src/examples/billing-org.js";
 import type { GraphDocInput } from "../src/graph.js";
 import type { ViewInput } from "../src/graph.js";
 import { MAX_RENDER_ASSETS, MAX_VIEWS, THEMES, THEME_PAIR } from "../src/primitives.js";
 import { postmarkRefactorManifestInput } from "../src/examples/postmark-refactor.js";
 import { safeParseConfig, safeParseGraphDoc, safeParseRenderManifest } from "../src/validate.js";
+import { graphSnapshotIssues } from "../src/integrity.js";
+import { pruneWalkthrough } from "../src/walkthrough.js";
 import { SCHEMA_VERSION } from "../src/version.js";
 import { detailParts } from "../src/walkthrough.js";
 import { clone, expectRejected } from "./helpers.js";
@@ -160,12 +163,11 @@ describe("walkthroughs", () => {
     const result = safeParseGraphDoc(postmarkRefactorGraphInput);
     if (!result.ok) throw result.error;
     expect(result.value.walkthrough?.steps.map((step) => step.id)).toEqual([
+      "four-batch-calls",
+      "route-queues",
       "batches-of-500",
       "suppression-first",
       "old-path-goes-dark",
-      "sequence-start-to-finish",
-      "four-batch-calls",
-      "blast-radius",
     ]);
   });
 
@@ -526,7 +528,7 @@ describe("config validation", () => {
   it("fills in the defaults a repository omits", () => {
     const result = safeParseConfig({ schemaVersion: SCHEMA_VERSION });
     if (!result.ok) throw result.error;
-    expect(result.value.lenses).toEqual(["architecture", "data-flow"]);
+    expect(result.value.lenses).toEqual(["architecture", "data-flow", "data-model"]);
     expect(result.value.branding).toBe(true);
     expect(result.value.map).toEqual({ rename: [], exclude: [], lane: [], group: [] });
   });
@@ -556,5 +558,143 @@ describe("the view cap's assumption", () => {
     expect(MAX_VIEWS).toBe(Math.floor(MAX_VIEWS));
     // Three themes exist, and a render never asks for all of them at once.
     expect(THEMES.length).toBeGreaterThan(THEME_PAIR.length);
+  });
+});
+
+describe("the data model", () => {
+  const model = () => {
+    const doc = clone(billingOrgGraphInput);
+    return { doc, model: doc.dataModel! };
+  };
+
+  it("accepts the billing golden and fills its defaults", () => {
+    const result = safeParseGraphDoc(billingOrgGraphInput);
+    if (!result.ok) throw result.error;
+    expect(result.value.dataModel?.relations.every((relation) => relation.enforced)).toBe(true);
+    expect(result.value.dataModel?.tables[1]?.files).toEqual([]);
+  });
+
+  it("requires the lens the model is drawn with", () => {
+    const { doc } = model();
+    doc.lenses = ["architecture"];
+    const error = expectRejected(doc);
+    expect(error.code).toBe("BROKEN_REFERENCE");
+    expect(error.message).toContain("does not declare the 'data-model' lens");
+  });
+
+  it("names the table and the store when a store reference is broken", () => {
+    const { doc, model: dataModel } = model();
+    dataModel.tables[0]!.store = "warehouse";
+    const error = expectRejected(doc);
+    expect(error.issues[0]?.path).toBe("dataModel.tables[0].store");
+    expect(error.message).toContain("table 'user' references unknown store 'warehouse'");
+  });
+
+  it("rejects a relation that ends on a column the table does not have", () => {
+    const { doc, model: dataModel } = model();
+    dataModel.relations![0]!.to = { table: "user", column: "uuid" };
+    const error = expectRejected(doc);
+    expect(error.issues[0]?.path).toBe("dataModel.relations[0].to.column");
+    expect(error.message).toContain("column 'uuid', which table 'user' does not have");
+  });
+
+  it("rejects a relation that names a table nobody declared", () => {
+    const { doc, model: dataModel } = model();
+    dataModel.relations![0]!.from = { table: "ghost", column: "id" };
+    expect(expectRejected(doc).message).toContain("unknown table 'ghost'");
+  });
+
+  it("rejects a column listed twice in one table", () => {
+    const { doc, model: dataModel } = model();
+    dataModel.tables[0]!.columns.push({ name: "id", type: "uuid", delta: "unchanged" });
+    const error = expectRejected(doc);
+    expect(error.code).toBe("DUPLICATE_ID");
+    expect(error.message).toContain("table 'user' lists column 'id' twice");
+  });
+
+  it("rejects a view, a focus and a cite that name tables nobody declared", () => {
+    const { doc } = model();
+    doc.views![1]!.scope = { kind: "selection", tables: ["ledger"] };
+    expect(expectRejected(doc).message).toContain("view 'data-model' scopes unknown table 'ledger'");
+
+    const focused = model().doc;
+    focused.walkthrough!.steps[0]!.focus = { kind: "selection", tables: ["ledger"] };
+    expect(expectRejected(focused).message).toContain("focuses unknown table 'ledger'");
+
+    const cited = model().doc;
+    cited.walkthrough!.steps[1]!.detail!.cites[1]!.ref = { kind: "column", table: "subscription", column: "nope" };
+    expect(expectRejected(cited).message).toContain("cites column 'nope' of table 'subscription'");
+  });
+
+  it.each(["uuid", "text[]", "numeric(5,4)", "timestamp with time zone", "Map<String, Int>", "string?", "date-time"])(
+    "accepts %s as a type name",
+    (type) => {
+      const { doc, model: dataModel } = model();
+      dataModel.tables[0]!.columns[1]!.type = type;
+      expect(safeParseGraphDoc(doc).ok).toBe(true);
+    },
+  );
+
+  it.each(["text default 'sk_live_abc'", "text = 'x'", "postgres://user:pw@host/db", "text -- see config", "int; drop table users"])(
+    "refuses %s as a type, since a value has no place in a type name",
+    (type) => {
+      const { doc, model: dataModel } = model();
+      dataModel.tables[0]!.columns[1]!.type = type;
+      const error = expectRejected(doc);
+      expect(error.issues[0]?.path).toBe("dataModel.tables[0].columns[1].type");
+      expect(error.message).toContain("must be a type name");
+    },
+  );
+
+  it("is never part of a stored map", () => {
+    const parsed = safeParseGraphDoc(billingOrgGraphInput);
+    if (!parsed.ok) throw parsed.error;
+    const paths = graphSnapshotIssues(parsed.value).map((issue) => issue.path);
+    expect(paths).toContain("dataModel");
+  });
+
+  it("drops a step whose focused tables are all gone", () => {
+    const parsed = safeParseGraphDoc(billingOrgGraphInput);
+    if (!parsed.ok) throw parsed.error;
+    const doc = parsed.value;
+    const pruned = pruneWalkthrough(doc.walkthrough, { ...doc, dataModel: undefined });
+    // Every step focuses tables alone, so none survives and the tour goes whole.
+    expect(pruned).toBeUndefined();
+  });
+});
+
+describe("the walkthrough embed in a manifest", () => {
+  const manifest = (walkthrough?: unknown) => ({
+    ...postmarkRefactorManifestInput,
+    ...(walkthrough === undefined ? {} : { walkthrough }),
+  });
+
+  const embed = (theme: string) => ({
+    id: `walkthrough-${theme}`,
+    theme,
+    mediaType: "image/svg+xml",
+    contentHash: "4b2d9e6f1a7c8350",
+    bytes: 70_000,
+    width: 870,
+    height: 442,
+    steps: 6,
+    path: `walkthrough-${theme}.svg`,
+  });
+
+  it("is an empty list on a manifest written before the embed existed", () => {
+    const parsed = safeParseRenderManifest(manifest());
+    expect(parsed.ok && parsed.value.walkthrough).toEqual([]);
+  });
+
+  it("carries one entry per half of the pair", () => {
+    const parsed = safeParseRenderManifest(manifest([embed("light"), embed("dark")]));
+    expect(parsed.ok && parsed.value.walkthrough.map((asset) => asset.theme)).toEqual(["light", "dark"]);
+  });
+
+  it("needs a url or a path, and a step count a walkthrough could have", () => {
+    const { path, ...homeless } = embed("light");
+    expect(safeParseRenderManifest(manifest([homeless])).ok).toBe(false);
+    expect(safeParseRenderManifest(manifest([{ ...embed("light"), steps: 1 }])).ok).toBe(false);
+    expect(safeParseRenderManifest(manifest([{ ...embed("light"), url: "https://cdn.example.com/w.svg" }])).ok).toBe(true);
   });
 });

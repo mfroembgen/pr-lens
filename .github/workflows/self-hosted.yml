@@ -53,6 +53,7 @@ jobs:
             https://raw.githubusercontent.com/oven-sh/bun/bun-v1.4.3/LICENSE.md \
             --output dist/cli/BUN_LICENSE.md
           cat packages/cli/node_modules/zod/LICENSE packages/cli/node_modules/yaml/LICENSE \
+            packages/cli/node_modules/transliteration/LICENSE.txt \
             > dist/cli/THIRD_PARTY_NOTICES
           for platform in linux-x64 linux-arm64 macos-x64 macos-arm64; do
             bun run compile:cli --target=bun-${platform/macos/darwin}

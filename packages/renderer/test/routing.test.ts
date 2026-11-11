@@ -9,7 +9,7 @@ import { fixture, tiers } from "./tiers.js";
 
 const layoutOf = (doc: typeof denseGraph) =>
   layoutArchitecture(
-    { lanes: doc.lanes, nodes: doc.nodes, edges: doc.edges, flows: doc.flows },
+    { lanes: doc.lanes, nodes: doc.nodes, edges: doc.edges, flows: doc.flows, stores: [], tables: [], relations: [] },
     doc.layout,
   );
 

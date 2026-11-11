@@ -3,9 +3,10 @@ import {
   PrLensRenderError,
   renderAll,
   THEME_PAIR,
+  walkthroughRefusal,
   type RenderThemes,
 } from "@coldtea/pr-lens-renderer";
-import { safeParseGraphDoc, type Config, type GraphDoc } from "@coldtea/pr-lens-schema";
+import { assertNever, safeParseGraphDoc, type Config, type GraphDoc } from "@coldtea/pr-lens-schema";
 import { join } from "node:path";
 import { expectOne, parseOptions, readBoolean, readString } from "../args.js";
 import { discoverConfig, loadConfig } from "../config-file.js";
@@ -15,30 +16,34 @@ import { PrLensCliError, usageError } from "../errors.js";
 import { repositoryRoot } from "../git.js";
 import { writeJsonFile, writeTextFile } from "../io.js";
 import type { Terminal } from "../terminal.js";
-import { slugify } from "../slug.js";
-import { prepareWorkspace, WORKSPACE_DIR } from "../workspace.js";
+import { FALLBACK_SLUG, slugify, unicodeFallbackSlug } from "../slug.js";
+import { DRAWN_NAME, prepareWorkspace, WORKSPACE_DIR } from "../workspace.js";
 
 /** Same title, same directory, so a redraw updates its canvas instead of minting one. */
-const defaultOut = (title: string): string => join(WORKSPACE_DIR, slugify(title));
+const defaultOut = async (title: string): Promise<string> => {
+  const slug = slugify(title);
+  const legacy = join(WORKSPACE_DIR, slug);
+  if (slug !== FALLBACK_SLUG) return legacy;
+  const fallback = unicodeFallbackSlug(title);
+  if (fallback === undefined) return legacy;
+
+  // A canvas with a custom name may only be found by its original source path.
+  const previous = await readGraphDoc(join(legacy, DRAWN_NAME)).catch((error: unknown) => {
+    if (error instanceof PrLensCliError) return undefined;
+    throw error;
+  });
+  return previous?.title === title ? legacy : join(WORKSPACE_DIR, fallback);
+};
 
 const MANIFEST = "manifest.json";
-
-/**
- * The document as it was drawn, written beside the manifest.
- *
- * Corrections are applied here, so the document on the way in and the
- * diagrams on the way out can describe different systems — a view whose every
- * element was excluded is drawn by neither. Whatever composes the comment has
- * to read the one the pictures came from, and it is a different file from the
- * one analyze wrote so that neither overwrites the other.
- */
-const DRAWN = "drawn.graph.json";
 
 export const USAGE = `pr-lens render <graph.json> [options]
 
 Draws the document as self-contained SVGs — one per drill-down section per
 lens, in light and dark — and writes the manifest describing them. A document
-with no sections gets one diagram per lens it declares.
+with no sections gets one diagram per lens it declares. A document with a
+walkthrough also gets the walkthrough embed: the tour as one animated SVG per
+theme, which a pull request comment plays in place of the top diagram.
 
   -o, --out <dir>      where the SVGs, the document and the manifest go
                        (default ${WORKSPACE_DIR}/<title>/, one directory per drawing)
@@ -96,15 +101,35 @@ export const renderGraph = async (
   })();
 
   await prepareWorkspace(out, terminal);
-  for (const drawing of rendered.assets) {
-    const { id, path } = drawing.asset;
-    if (path === undefined)
-      throw new PrLensCliError("RENDER_FAILED", `the render named no file for asset '${id}'`);
-    await writeTextFile(join(out, path), drawing.svg);
-  }
-  await writeJsonFile(join(out, DRAWN), graph);
+
+  const write = async ({ asset, svg }: { asset: { id: string; path?: string | undefined }; svg: string }): Promise<void> => {
+    if (asset.path === undefined)
+      throw new PrLensCliError("RENDER_FAILED", `the render named no file for asset '${asset.id}'`);
+    await writeTextFile(join(out, asset.path), svg);
+  };
+
+  for (const drawing of rendered.assets) await write(drawing);
+
+  const embeds = await (async (): Promise<string> => {
+    switch (rendered.walkthrough.type) {
+      case "absent":
+        return "";
+      case "unresolvable":
+        terminal.err(`${walkthroughRefusal(rendered.walkthrough.issues)} The walkthrough embed was not drawn.`);
+        return "";
+      case "rendered": {
+        for (const embed of rendered.walkthrough.assets) await write(embed);
+        return ` and the walkthrough embed in ${rendered.walkthrough.assets.length === 1 ? "one theme" : "both themes"}`;
+      }
+      default:
+        return assertNever(rendered.walkthrough, "Unhandled walkthrough render");
+    }
+  })();
+
+  await writeJsonFile(join(out, DRAWN_NAME), graph);
   await writeJsonFile(join(out, MANIFEST), rendered.manifest);
-  return rendered;
+
+  return { ...rendered, embeds };
 };
 
 export const renderCommand = async (args: readonly string[], terminal: Terminal): Promise<void> => {
@@ -116,7 +141,7 @@ export const renderCommand = async (args: readonly string[], terminal: Terminal)
   });
 
   const graph = await readGraphDoc(expectOne(positionals, "one graph document to render"));
-  const out = readString(values.out, "out") ?? defaultOut(graph.title);
+  const out = readString(values.out, "out") ?? (await defaultOut(graph.title));
 
   const configPath = readString(values.config, "config");
   const configured = readBoolean(values["no-config"])
@@ -149,6 +174,6 @@ export const renderCommand = async (args: readonly string[], terminal: Terminal)
 
   const diagrams = new Set(rendered.assets.map((asset) => asset.asset.view ?? asset.lens));
   terminal.out(
-    `✓ ${join(out, MANIFEST)} — ${rendered.assets.length} SVGs across ${diagrams.size} ${diagrams.size === 1 ? "diagram" : "diagrams"}${configured === undefined ? "" : `, corrected by ${configured.path}`}`,
+    `✓ ${join(out, MANIFEST)} — ${rendered.assets.length} SVGs across ${diagrams.size} ${diagrams.size === 1 ? "diagram" : "diagrams"}${rendered.embeds}${configured === undefined ? "" : `, corrected by ${configured.path}`}`,
   );
 };

@@ -15,7 +15,7 @@ BASE_URL="${BASE_URL:-}"
 LENS="${LENS:-}"
 BRANDING="${BRANDING:-true}"
 COMMENT="${COMMENT:-true}"
-CLI_VERSION="${CLI_VERSION:-0.12.0}"
+CLI_VERSION="${CLI_VERSION:-0.14.0}"
 API_KEY_VARIABLE="${API_KEY_VARIABLE:-GEMINI_API_KEY}"
 TOKEN_VARIABLE="${TOKEN_VARIABLE:-PR_LENS_TOKEN}"
 
@@ -67,6 +67,7 @@ if ! git merge-base HEAD "origin/${DEST}" > /dev/null 2>&1; then
 fi
 
 WORK="${PR_LENS_WORK:-$(mktemp -d)}"
+NPM_PREFIX="$(mktemp -d)"
 
 cli() {
   # The CLI baked into the image, when it is the version asked for. Fetching
@@ -81,7 +82,7 @@ cli() {
     return
   fi
 
-  npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" "$@"
+  npx --yes --prefix "${NPM_PREFIX}" --userconfig /dev/null --ignore-scripts "@coldtea/pr-lens-cli@${CLI_VERSION}" "$@"
 }
 
 # HEAD already contains the destination, so the CLI's own merge-base of the

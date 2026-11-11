@@ -6,7 +6,7 @@ The viewer supports pan and zoom, light and dark themes, walkthroughs, payload i
 
 ## Install with Helm
 
-Image: `ghcr.io/mfroembgen/pr-lens:v0.13.3`. Chart: `oci://ghcr.io/mfroembgen/charts/pr-lens`, version `0.13.3`.
+Image: `ghcr.io/mfroembgen/pr-lens:v0.15.0`. Chart: `oci://ghcr.io/mfroembgen/charts/pr-lens`, version `0.15.0`.
 
 For the default protected mode, create a Secret through your existing secret manager. Its `token` key must contain 64 random hexadecimal characters. Keep the same value across restarts: the server derives its credential-encryption key from it.
 
@@ -26,7 +26,7 @@ ingress:
 
 ```sh
 helm upgrade --install pr-lens oci://ghcr.io/mfroembgen/charts/pr-lens \
-  --version 0.13.3 --namespace pr-lens --create-namespace --values values.yaml
+  --version 0.15.0 --namespace pr-lens --create-namespace --values values.yaml
 ```
 
 The chart runs one nonroot replica with a read-only root filesystem, writable `/tmp`, and a retained PVC. `Recreate` prevents two pods competing for the database. A restart briefly interrupts connections; clients reconnect and saved state remains available.
@@ -52,7 +52,7 @@ The CLI browser device flow works through `pr-lens auth login --api https://lens
 
 ## Publish locally
 
-Download `pr-lens-cli-<os>-<arch>.tar.gz` from the [v0.13.3 release](https://github.com/mfroembgen/pr-lens/releases/tag/v0.13.3), choosing `macos` or `linux` and `arm64` or `x64`. Verify it against `SHA256SUMS`, extract it, and put `pr-lens` on your path. The executable includes its runtime, renderer, schema, and agent manual; Bun and Node are not required. Linux builds use glibc. Git is required for commands that inspect or publish repository changes. Run `pr-lens skill` to load the authoring instructions.
+Download `pr-lens-cli-<os>-<arch>.tar.gz` from the [v0.15.0 release](https://github.com/mfroembgen/pr-lens/releases/tag/v0.15.0), choosing `macos` or `linux` and `arm64` or `x64`. Verify it against `SHA256SUMS`, extract it, and put `pr-lens` on your path. The executable includes its runtime, renderer, schema, and agent manual; Bun and Node are not required. Linux builds use glibc. Git is required for commands that inspect or publish repository changes. Run `pr-lens skill` to load the authoring instructions.
 
 `publish` targets a self-hosted server with `authMode: none`. The agent chooses GitLab MCP or `glab` for GitLab operations; it uses a fallback when its selected transport lacks an operation such as attachment upload. Keep GitLab credentials with that transport.
 

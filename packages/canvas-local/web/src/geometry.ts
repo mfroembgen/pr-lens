@@ -104,7 +104,7 @@ export const nearest = (tiles: readonly Placed[], camera: Camera, viewport: View
 }
 
 export const tileForStage = (tiles: readonly Placed[], stage: StepStage | undefined, current: Placed | undefined): Placed | undefined => {
-  if (stage === undefined) return current ?? tiles[0]
+  if (stage === undefined) return tiles[0]
   if (stage.kind === "view") return tiles.find((tile) => tile.id === `view:${stage.view}`) ?? current ?? tiles[0]
   // A flow may be drawn by its own tile or inside a data-flow view.
   return (
@@ -130,6 +130,7 @@ export const focusBoxes = (tile: Placed, focus: StepFocus): Box[] => {
   if (focus.kind === "all") return []
   const boxes = [
     ...focus.lanes.map((id) => tile.atlas.lanes[id]),
+    ...focus.tables.map((id) => tile.atlas.tables[id]),
     ...focus.nodes.map((id) => tile.atlas.nodes[id]),
     ...focus.edges.map((id) => tile.atlas.edges[id]),
     ...focus.messages.map((id) => messageBox(tile, id)),

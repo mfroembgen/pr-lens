@@ -1,5 +1,6 @@
 import type {
   CiteRef,
+  DataModel,
   Flow,
   GraphEdge,
   GraphNode,
@@ -83,6 +84,7 @@ export type WalkthroughSubject = {
   edges: readonly GraphEdge[];
   flows: readonly Flow[];
   views: readonly View[];
+  dataModel?: DataModel | undefined;
 };
 
 const stageSurvives = (
@@ -145,7 +147,7 @@ export const detailParts = ({ text, cites }: StepDetail): StepPart[] => {
 /** A file cite always passes, because the document has no list of files to check it against. */
 export const citeStands = (
   ref: CiteRef,
-  subject: Pick<WalkthroughSubject, "nodes" | "flows" | "views">,
+  subject: Pick<WalkthroughSubject, "nodes" | "flows" | "views" | "dataModel">,
 ): boolean => {
   switch (ref.kind) {
     case "node":
@@ -160,6 +162,14 @@ export const citeStands = (
       return subject.flows.some((flow) => flow.id === ref.flow);
     case "file":
       return true;
+    case "table":
+      return subject.dataModel?.tables.some((table) => table.id === ref.table) ?? false;
+    case "column":
+      return (
+        subject.dataModel?.tables.some(
+          (table) => table.id === ref.table && table.columns.some((column) => column.name === ref.column),
+        ) ?? false
+      );
     default:
       return assertNever(ref, "Unhandled cite ref");
   }
@@ -189,6 +199,7 @@ export const pruneWalkthrough = (
   const nodes = new Set(subject.nodes.map((node) => node.id));
   const edges = new Set(subject.edges.map((edge) => edge.id));
   const flows = new Set(subject.flows.map((flow) => flow.id));
+  const tables = new Set(subject.dataModel?.tables.map((table) => table.id) ?? []);
   const views = indexViews(subject.views);
 
   const steps = walkthrough.steps.flatMap((cited): WalkthroughStep[] => {
@@ -206,10 +217,15 @@ export const pruneWalkthrough = (
           nodes: step.focus.nodes.filter((id) => nodes.has(id)),
           edges: step.focus.edges.filter((id) => edges.has(id)),
           messages: step.focus.messages.filter((id) => onStage.has(id)),
+          tables: step.focus.tables.filter((id) => tables.has(id)),
         } as const;
 
         const focused =
-          focus.lanes.length + focus.nodes.length + focus.edges.length + focus.messages.length;
+          focus.lanes.length +
+          focus.nodes.length +
+          focus.edges.length +
+          focus.messages.length +
+          focus.tables.length;
         return focused === 0 ? [] : [{ ...step, focus }];
       }
       default:

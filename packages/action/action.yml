@@ -44,7 +44,7 @@ inputs:
     default: pr-lens
   cli-version:
     description: Version of @coldtea/pr-lens-cli to run.
-    default: 0.13.3
+    default: 0.15.0
   comment-author:
     description: >-
       Login that owns the PR Lens comment. Only a comment posted by this
@@ -102,7 +102,8 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
+        mkdir -p "${RUNNER_TEMP}/pr-lens"
+        npx --yes --prefix "${RUNNER_TEMP}/pr-lens" --userconfig /dev/null --ignore-scripts "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
           --base "${BASE_SHA}" \
           --head "${HEAD_SHA}" \
           --pr "${PR_NUMBER}" \
@@ -137,7 +138,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" render "${RUNNER_TEMP}/pr-lens/graph.json" \
+        npx --yes --prefix "${RUNNER_TEMP}/pr-lens" --userconfig /dev/null --ignore-scripts "@coldtea/pr-lens-cli@${CLI_VERSION}" render "${RUNNER_TEMP}/pr-lens/graph.json" \
           --out "${RUNNER_TEMP}/pr-lens/assets"
       env:
         CLI_VERSION: ${{ inputs.cli-version }}

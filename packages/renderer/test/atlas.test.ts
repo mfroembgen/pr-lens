@@ -3,15 +3,27 @@ import { assertNever, parseGraphDoc } from "@coldtea/pr-lens-schema";
 import { postmarkRefactorGraph } from "@coldtea/pr-lens-schema/examples";
 import { describe, expect, it } from "vitest";
 import { union } from "../src/bounds.js";
-import { FLOW_MAX_PULSES_PER_MESSAGE } from "../src/design.js";
+import { FLOW_MAX_PULSES_PER_MESSAGE, TABLE_ROW_HEIGHT } from "../src/design.js";
 import { render, THEMES, type Box, type RenderAtlas } from "../src/index.js";
 import { layoutDataFlow } from "../src/layout/dataflow.js";
 import { resolveScope, type ScopedGraph } from "../src/scope.js";
 import { tiers } from "./tiers.js";
+import { oneStoreGraph } from "./one-store.js";
 
 /** Every lens a document declares that it can actually draw something in. */
 const drawableLenses = (doc: GraphDoc): Lens[] =>
-  doc.lenses.filter((lens) => lens !== "data-flow" || doc.flows.length > 0);
+  doc.lenses.filter((lens) => {
+    switch (lens) {
+      case "architecture":
+        return true;
+      case "data-flow":
+        return doc.flows.length > 0;
+      case "data-model":
+        return doc.dataModel !== undefined;
+      default:
+        return assertNever(lens, "Unhandled lens");
+    }
+  });
 
 const wholeDocument = (doc: GraphDoc): ScopedGraph => resolveScope(doc, { kind: "all" });
 
@@ -23,7 +35,7 @@ const wholeDocument = (doc: GraphDoc): ScopedGraph => resolveScope(doc, { kind: 
 const expectedKeys = (
   lens: Lens,
   graph: ScopedGraph,
-): { lanes: string[]; nodes: string[]; edges: string[]; messages: Record<string, string[]> } => {
+): { lanes: string[]; nodes: string[]; edges: string[]; messages: Record<string, string[]>; tables: string[] } => {
   switch (lens) {
     case "architecture":
       return {
@@ -31,6 +43,15 @@ const expectedKeys = (
         nodes: graph.nodes.map((node) => node.id),
         edges: graph.edges.map((edge) => edge.id),
         messages: {},
+        tables: [],
+      };
+    case "data-model":
+      return {
+        lanes: graph.stores.map((store) => store.id),
+        nodes: [],
+        edges: graph.relations.map((relation) => relation.id),
+        messages: {},
+        tables: graph.tables.map((table) => table.id),
       };
     case "data-flow":
       return {
@@ -46,6 +67,7 @@ const expectedKeys = (
         messages: Object.fromEntries(
           graph.flows.map((flow) => [flow.id, flow.messages.map((message) => message.id)]),
         ),
+        tables: [],
       };
     default:
       return assertNever(lens, "Unhandled lens");
@@ -94,6 +116,7 @@ describe("every drawn thing has a box, and nothing else does", () => {
         expect(sorted(Object.keys(atlas.nodes))).toEqual(sorted(expected.nodes));
         expect(sorted(Object.keys(atlas.edges))).toEqual(sorted(expected.edges));
         expect(sorted(Object.keys(atlas.messages))).toEqual(sorted(Object.keys(expected.messages)));
+        expect(sorted(Object.keys(atlas.tables))).toEqual(sorted(expected.tables));
 
         for (const [flow, steps] of Object.entries(expected.messages))
           expect(sorted(Object.keys(atlas.messages[flow] ?? {}))).toEqual(sorted(steps));
@@ -121,6 +144,7 @@ const everyBox = (atlas: RenderAtlas): Box[] => [
   ...Object.values(atlas.nodes),
   ...Object.values(atlas.edges),
   ...Object.values(atlas.messages).flatMap((flow) => Object.values(flow)),
+  ...Object.values(atlas.tables),
 ];
 
 /**
@@ -221,5 +245,34 @@ describe("a node drawn twice", () => {
     expect(Object.keys(atlas.messages)).toEqual(["first", "second"]);
     expect(Object.keys(atlas.messages["first"] ?? {})).toEqual(["enqueue"]);
     expect(Object.keys(atlas.messages["second"] ?? {})).toEqual(["post"]);
+  });
+});
+
+describe("the rows of a table card", () => {
+  const { atlas } = render(oneStoreGraph, { lens: "data-model", theme: "light" });
+
+  it("places every drawn column inside its card, one row height tall, in the card's order", () => {
+    for (const table of oneStoreGraph.dataModel?.tables ?? []) {
+      const card = atlas.tables[table.id];
+      const rows = atlas.columns[table.id];
+      if (card === undefined || rows === undefined) throw new Error(`no card for ${table.id}`);
+
+      const names = table.columns.map((column) => column.name);
+      let previousTop = -Infinity;
+      for (const [name, row] of Object.entries(rows)) {
+        expect(names).toContain(name);
+        expect(row.x).toBe(card.x);
+        expect(row.width).toBe(card.width);
+        expect(row.height).toBe(TABLE_ROW_HEIGHT);
+        expect(row.y).toBeGreaterThan(card.y);
+        expect(row.y + row.height).toBeLessThanOrEqual(card.y + card.height);
+        expect(row.y).toBeGreaterThan(previousTop);
+        previousTop = row.y;
+      }
+    }
+  });
+
+  it("draws the other lenses with no rows at all", () => {
+    expect(render(oneStoreGraph, { lens: "architecture", theme: "light" }).atlas.columns).toEqual({});
   });
 });

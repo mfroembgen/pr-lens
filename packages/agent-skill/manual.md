@@ -12,7 +12,7 @@ Decide where the diagram lands before you write it: a canvas, or an SVG and a pu
 
    If not expressing a code diff, read the code to be visually represented
 
-2. **Write the document** to `.pr-lens/graph.json`, following `references/graph-document.md`. `references/example.graph.json` is valid reference with three lanes, all four delta states, a hero edge, a seven-step flow, a nested drill-down tree and a six-step walkthrough. Read it before you write your first one. It is quicker than reading the reference. If it is going to a canvas, give every flow step (`messages`) that moves data a `payload` as you write it. "Sample traffic on a flow step" below says what goes in one. Only a flow step carries one. Flows need the `data-flow` lens, so an architecture view draws none.
+2. **Write the document** to `.pr-lens/graph.json`, following `references/graph-document.md`. `references/example.graph.json` is valid reference with three lanes, all four delta states, a hero edge, a seven-step flow, a nested drill-down tree and a five-step walkthrough. Read it before you write your first one. It is quicker than reading the reference. If it is going to a canvas, give every flow step (`messages`) that moves data a `payload` as you write it. "Sample traffic on a flow step" below says what goes in one. Only a flow step carries one. Flows need the `data-flow` lens, so an architecture view draws none. A change that touches a migration, an ORM model or a schema file also gets a `dataModel`, under the `data-model` lens: the tables it changes, a delta per column, and a relation per foreign key. "Data model" in the reference says what goes in one.
 
 3. **Validate, and fix**
 
@@ -25,10 +25,12 @@ Decide where the diagram lands before you write it: a canvas, or an SVG and a pu
 4. **Render.**
 
    ```bash
-   npx @coldtea/pr-lens-cli@latest render .pr-lens/graph.json --theme light
+   npx @coldtea/pr-lens-cli@latest render .pr-lens/graph.json
    ```
 
-   Render light by default unless the user requests another theme. The SVGs, the manifest and `drawn.graph.json` land in a directory of their own under `.pr-lens/`, named after the document's title. The render prints that path, so read it from there. The CLI adds `.pr-lens/` to the repository's .gitignore. Do not commit any of it. These files are rebuilt from the diff whenever anyone wants them again. Each SVG is named after its view, the theme and a content hash; `manifest.json` lists them by lens and view, so read the names from there or from the directory.
+   This draws the light and dark pair, which is what GitHub takes in step 5; the stills attached on their own there are the light half. Render with `--theme neutral` only for GitLab or Bitbucket, as step 5 says. The SVGs, the manifest and `drawn.graph.json` land in a directory of their own under `.pr-lens/`, named after the document's title. The render prints that path, so read it from there. The CLI adds `.pr-lens/` to the repository's .gitignore. Do not commit any of it. These files are rebuilt from the diff whenever anyone wants them again. Each SVG is named after its view, the theme and a content hash; `manifest.json` lists them by lens and view, so read the names from there or from the directory.
+
+   A document with a walkthrough also gets the walkthrough embed, `walkthrough-light-<hash>.svg` and `walkthrough-dark-<hash>.svg`: the whole tour as one animated SVG that plays by itself wherever an image shows, flying between the diagrams with each step's caption above. `manifest.json` lists the two under `walkthrough`.
 
    If the user asked for a diagram, an explanation or a picture of the architecture and nothing more, put it on a canvas and hand back the link:
 
@@ -53,12 +55,13 @@ How the diagram gets there depends on the forge. Run `git remote get-url origin`
    ```markdown
    Moves bulk sending off the per-recipient trigger and onto a batch endpoint.
 
-   ![Architecture after this change: the queue route, the new bulk sender and the retired per-recipient path](.pr-lens/overview-light-4f9bd6c1.svg)
+   ![Walkthrough of this change in six steps: the queue route, the new bulk sender and the retired per-recipient path](.pr-lens/batch-broadcast-sends/walkthrough-light-4f9bd6c1.svg)
    ```
 
    ```bash
    gh pr create --title "Batch broadcast sends" --body-file .pr-lens/body.md \
-     --attach .pr-lens/overview-light-4f9bd6c1.svg
+     --attach .pr-lens/batch-broadcast-sends/walkthrough-light-4f9bd6c1.svg \
+     --attach .pr-lens/batch-broadcast-sends/walkthrough-dark-4f9bd6c1.svg
    ```
 
    On a pull request that already exists, `gh pr edit <number>` with the same two flags puts the diagram in the description, and `gh pr comment <number>` puts it in a comment. Repeat `--attach` for each diagram the body references.
@@ -68,7 +71,20 @@ How the diagram gets there depends on the forge. Run `git remote get-url origin`
    - The alt text is the caption a reader without images gets. Say what the diagram shows, in one line.
    - `--attach` arrived in GitHub CLI 2.99. Check with `gh --version` before you write a body around it.
 
-   Attach the views a reviewer needs and leave the rest in `.pr-lens/`: the top architecture view first, then a data flow if the change has a sequence worth following. A body with four diagrams reads worse than one with two, except the four are really needed to understand the change e.g., in the case of a complex feature or refactor.
+   Attach the walkthrough embed first when the document has one. It plays the tour in the pull request itself, so a reviewer reads the change before reading the diff, with nothing to open. It opens on the top architecture view and tours the rest, so do not attach that view beside it; the two would show the same picture twice. Then a data flow, if the change has a sequence worth following and the tour does not already dwell on it. A document with no walkthrough gets the top architecture view first instead, then the data flow. Leave the rest in `.pr-lens/`. A body with four diagrams reads worse than one with two, except when the four are really needed to understand the change, as with a complex feature or refactor.
+
+   The embed sits on the page's own colour and is drawn once per theme, so a dark-mode reader given the light half sees dark captions on a dark page. GitHub chooses between the two halves only through a `<picture>` pair, and gh leaves HTML alone, so the pair takes one more step. Pass both halves to `--attach`, as above: the light one is the Markdown image the body references, and the dark one, referenced nowhere, lands at the end of the body as a Markdown image of its own. Read the body back, take the two `https://github.com/user-attachments/assets/...` URLs, light first, and replace both image lines with the pair, on one line, since a newline inside the `<a>` shows as a stray underline:
+
+   ```html
+   <a href="LIGHT_URL"><picture><source media="(prefers-color-scheme: dark)" srcset="DARK_URL"><img alt="Walkthrough of this change, in six steps" src="LIGHT_URL" width="870"></picture></a>
+   ```
+
+   ```bash
+   gh pr view <number> --json body --jq .body
+   gh pr edit <number> --body-file .pr-lens/body.md
+   ```
+
+   For a comment, `gh pr comment <number> --edit-last --body-file .pr-lens/body.md` rewrites the one you just posted. The stills keep the single Markdown image, since each carries its own ground.
 
    **GitLab.** Nothing uploads the file with the description for you, so upload each SVG to the project first. The response includes the Markdown to paste into the description:
 
@@ -81,7 +97,7 @@ How the diagram gets there depends on the forge. Run `git remote get-url origin`
    glab mr create --title "Batch broadcast sends" --description "$(cat .pr-lens/body.md)"
    ```
 
-An uploaded image loads for every reader of the merge request. A raw file URL on a private project does not. The catch is that the attachment URL is the permission: it is unguessable, but anyone who has it can see the diagram, member or not. Tell the user this if the project is private. GitLab strips `<picture>`, so render with `--theme neutral` and reference that single SVG. The neutral render has its own background and reads in both light and dark mode. Either half of the light/dark pair looks wrong in one of them.
+An uploaded image loads for every reader of the merge request. A raw file URL on a private project does not. The catch is that the attachment URL is the permission: it is unguessable, but anyone who has it can see the diagram, member or not. Tell the user this if the project is private. GitLab strips `<picture>`, so render with `--theme neutral` and reference that single SVG. The neutral render has its own background and reads in both light and dark mode. Either half of the light/dark pair looks wrong in one of them. There is no neutral walkthrough embed, so GitLab and Bitbucket get the stills.
 
    **Bitbucket.** Comments and descriptions are plain Markdown with no HTML, so there are no collapsible sections or theme pairs. Render with `--theme neutral` here too. Publish the SVGs somewhere durable, such as the repository's Downloads or a canvas, and reference them as ordinary Markdown images.
 
@@ -186,7 +202,7 @@ After `answer`, `show` and `fork`, the CLI says where the reader is. If it says 
 
 ## The pull request body, when there is one
 
-A reviewer should understand the change before reading the diff, so the diagram goes where they look first: the description, not a trailing comment. Open with one sentence on why the change exists, then the architecture diagram, then whatever proves the change works, such as a screenshot of the result or a recording of the interaction. Use one visual per idea. A diagram that needs a paragraph of explanation has a document problem; go back to step 2.
+A reviewer should understand the change before reading the diff, so the diagram goes where they look first: the description, not a trailing comment. Open with one sentence on why the change exists, then the walkthrough embed, or the architecture diagram when the document has no walkthrough, then whatever proves the change works, such as a screenshot of the result or a recording of the interaction. Use one visual per idea. A diagram that needs a paragraph of explanation has a document problem; go back to step 2.
 
 ## What makes a document worth reading
 
@@ -205,17 +221,19 @@ Every child moves down one level and covers a materially narrower scope. Skip em
 
 Keep data-flow views as separate roots rather than nesting them in the architecture tree. Set `defaultOpen: true` on the highest useful architecture view. Lower levels should normally keep the default, `false`.
 
+Scope a child view by its nodes and edges, and leave `lanes` out. A lane in a scope draws every node in that lane, wanted or not, and the lanes your nodes sit in are drawn anyway.
+
 ## Writing a walkthrough
 
 A walkthrough is a short guided tour of the diagrams. It has two to twelve steps. Each step shows one diagram, points at one part of it, and says a few words about it. A canvas plays it, and the reader scrolls through it.
 
 The contract leaves a walkthrough optional. Write one anyway for anything that is not trivial: more than one diagram, a diagram with several changed parts, or any flow. Skip it only when the document is one small diagram whose single step would just repeat the title.
 
-Aim for three to seven steps.
+Aim for three to nine steps.
 
 A walkthrough is the fastest read of a pull request. Each step is one change: something added, changed, removed or moved, in the order a reviewer needs it. A step is never a description of the diagram.
 
-What counts as a step: a behaviour change, an API change, an architecture change, a data-flow change, or an addition. Unchanged parts appear only where a step needs them to make sense. The headline change is step one. An overview of everything touched, if there is one, is the last step.
+What counts as a step: a behaviour change, an API change, an architecture change, a data-flow change, or an addition. Unchanged parts appear only where a step needs them to make sense. The headline change is step one. The last step is the last real change, staged and focused like every other, such as the old path going away or the one thing a person now sees. Do not end on a recap of everything touched. The reader already saw the whole picture when the canvas opened.
 
 ```json
 "walkthrough": {
@@ -236,10 +254,11 @@ What counts as a step: a behaviour change, an API change, an architecture change
       }
     },
     {
-      "id": "blast-radius",
-      "heading": "4 parts added, 2 removed, across 3 lanes",
-      "body": "A 2,000-person broadcast used to make 2,000 calls to Postmark. It now makes 4.",
-      "stage": { "kind": "view", "view": "overview" }
+      "id": "old-path-goes-dark",
+      "heading": "processBroadcast and sendSingleEmail removed",
+      "body": "sendBroadcastBulk does their job for whole batches.",
+      "stage": { "kind": "view", "view": "retired-path" },
+      "focus": { "kind": "selection", "nodes": ["process-broadcast", "send-single-email"] }
     }
   ]
 }
@@ -249,8 +268,8 @@ Each step has:
 
 - `heading`: the thing and what happened to it, up to 48 characters, in sentence case. Build it from change words: added, removed, replaced, now, moved, split. If a heading could have been true before the pull request, it is not a change heading.
 - `body`: one line under the heading, up to 140 characters, on what the change means for behaviour: what happens now that did not before, or what stops happening, with the numbers when they matter. Not a restatement of the heading, and not a description of the code. A heading with no body reads as unfinished, so the body is required.
-- `stage`: which diagram to show. A document can have several diagrams: its views (the drill-down diagrams) and its flows (the sequence diagrams). `{ "kind": "view", "view": "overview" }` shows the view called `overview`. `{ "kind": "flow", "flow": "send-pipeline" }` shows the flow called `send-pipeline`. Leave `stage` out and the step uses the diagram the reader is already on. Open on the widest view with the focus left out, so the reader sees the whole thing before it narrows.
-- `focus`: what to zoom in on inside that diagram. `{ "kind": "all" }`, the default, means the whole diagram. A selection means "just these things": name any lanes, nodes, edges or flow steps (`messages`) by id, and the camera zooms to them while everything else dims. Focus the elements the step's change touched, so the veil lights the change. Point at two or three of them. A step that lights half the diagram has not said anything.
+- `stage`: which diagram to show. A document can have several diagrams: its views (the drill-down diagrams) and its flows (the sequence diagrams). `{ "kind": "view", "view": "overview" }` shows the view called `overview`. `{ "kind": "flow", "flow": "send-pipeline" }` shows the flow called `send-pipeline`. Leave `stage` out and the step uses the diagram the reader is already on. Stage each step on the smallest diagram that draws what it names, usually a child view or a flow.
+- `focus`: what to zoom in on inside that diagram. `{ "kind": "all" }`, the default, means the whole diagram. A selection means "just these things": name nodes, edges or flow steps (`messages`) by id, and the camera zooms to them while everything else dims. Give every step a selection on what its change touched, so the veil lights the change. See "Lighting one change" below for how much one step can name.
 - `detail`: optional. A second sentence under the body, with links into the diagram. See "Links under a step" below.
 
 Write every word for a smart twelve-year-old: short common words, one idea per line, active voice, things named as the diagram names them, numbers as digits. If a line needs a second read, rewrite it. Words like leverages, orchestrates, asynchronous pipeline and fan-out never belong in a step. This holds in whatever language the document is written in.
@@ -262,6 +281,18 @@ The same three steps, written well and written badly. Heading first, then the bo
 | Route now queues the job instead of sending / The API call finishes at once. A worker sends the mail later. | Broadcast fan-out moves behind the queue / The API route now enqueues broadcast jobs for asynchronous batch processing instead of sending emails inline. |
 | Postmark now gets 500 emails per call / One call per batch instead of one call per person. | Batched delivery replaces single sends / The worker leverages the shared library to send emails in chunks of 500 via Postmark's batch endpoint. |
 | processBroadcast and sendSingleEmail removed / sendBroadcastBulk does their job for whole batches. | Single send functions are retired / sendBroadcastBulk replaces processBroadcast and sendSingleEmail to handle bulk deliveries in chunks. |
+
+### Lighting one change
+
+The canvas cuts one box around everything a focus names and lights every card inside that box, named or not. Two things far apart light everything between them, and the reader can no longer tell what the step is about. How much a focus can name depends on the diagram under it:
+
+- On a view that draws four cards or fewer, up to three nodes and the edges between them.
+- On a bigger view, one node.
+- On a flow, up to three flow steps that follow one another. Steps with a gap between them light the steps in the gap.
+
+Count a view's cards before you name a second node: the nodes its scope names, plus both ends of every edge it names. When a step is about two or three nodes (one replacing another, a pair removed together) and its view draws five or more, add a child view of only them and stage the step there, or focus the flow step between them. Name an edge only when the edge is itself the change. Never name a lane in a focus, because it lights every card in that lane.
+
+When a change needs more than one focus can hold, split it into steps, each with its own heading, body and focus. A step that names a page, its route and two services the route calls lights half the diagram. Write one step on the page, one on the route, and one on the flow step that matters.
 
 ### Links under a step
 
@@ -278,7 +309,7 @@ A click on a node or a diagram moves the camera there. A click on a flow step al
 
 Do not cite files. A canvas you push has no pull request behind it, so a file link has nothing to open and shows as plain words.
 
-Leave the detail off the overview step, and off any step where it would only say the body again.
+Leave the detail off any step where it would only say the body again.
 
 Keep consecutive steps on the same stage together. Every change of stage flies the camera across the canvas, so a tour that alternates between two diagrams spends its time travelling.
 
@@ -373,7 +404,7 @@ Seven rules cannot be expressed in JSON Schema and are checked only by the parse
 When someone says the diagram is wrong (a node is misnamed, a folder should not be on it, something sits in the wrong lane), do not edit the generated document. It is regenerated on every run. Write the correction into `.github/pr-lens.yml`, which is an overlay applied over fresh inference every time:
 
 ```yaml
-schemaVersion: 0.2.0
+schemaVersion: 0.3.1
 map:
   rename:
     - match: functions/src/broadcast/sendBroadcastBulk.ts

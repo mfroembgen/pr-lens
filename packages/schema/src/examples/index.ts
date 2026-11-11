@@ -1,5 +1,6 @@
 import { parseConfig, parseGraphDoc, parsePatchDoc, parseRenderManifest } from "../validate.js";
 import { broadcastBaselineGraphInput, broadcastBaselinePatchInput } from "./baseline.js";
+import { billingOrgGraphInput } from "./billing-org.js";
 import { minimalGraphInput } from "./minimal.js";
 import { payloadGraphInput } from "./payload.js";
 import {
@@ -15,6 +16,7 @@ export const broadcastBaselinePatch = parsePatchDoc(broadcastBaselinePatchInput)
 export const exampleConfig = parseConfig(exampleConfigInput);
 export const minimalGraph = parseGraphDoc(minimalGraphInput);
 export const payloadGraph = parseGraphDoc(payloadGraphInput);
+export const billingOrgGraph = parseGraphDoc(billingOrgGraphInput);
 
 /** Every golden, keyed by the filename it is published under in `examples/`. */
 export const goldenDocuments = {
@@ -25,4 +27,5 @@ export const goldenDocuments = {
   "pr-lens.config.json": exampleConfig,
   "minimal.graph.json": minimalGraph,
   "payload.graph.json": payloadGraph,
+  "billing-org.graph.json": billingOrgGraph,
 } as const;

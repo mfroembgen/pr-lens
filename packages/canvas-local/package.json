@@ -12,7 +12,7 @@
     "node": ">=20.11"
   },
   "scripts": {
-    "build": "rm -rf dist && tsrs -p tsconfig.build.json && bun --bun vite build web",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsrs -p tsconfig.build.json && bun --bun vite build web",
     "typecheck": "tsrs -p tsconfig.json --noEmit && tsrs -p web/tsconfig.json --noEmit",
     "test": "bun test test",
     "start": "bun dist/bin.js",

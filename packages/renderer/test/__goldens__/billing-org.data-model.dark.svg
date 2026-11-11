@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1284 594" width="1284" height="594" role="img" aria-label="Move subscriptions to organizations" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Move subscriptions to organizations</title>
+<desc>Subscriptions and invoices used to hang off a person. They now hang off an organization, which arrives with a membership table, and the Stripe customer moves with them.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1284" height="594" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1284" height="594" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="70" width="404" height="508" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="32" y="94" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">IDENTITY · POSTGRES</text>
+<rect class="lanebox" x="440" y="70" width="404" height="508" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="456" y="94" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">WORKSPACE · POSTGRES</text>
+<rect class="lanebox" x="864" y="70" width="404" height="508" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="880" y="94" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">BILLING · POSTGRES</text></g>
+<g><path class="edge edge-neutral context" d="M404,442 L420.33,442 C429.35,442 436.67,434.69 436.67,425.67 L436.67,214.83 C436.67,205.81 429.35,198.5 420.33,198.5 L404,198.5" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<circle class="port" cx="404" cy="442" r="2.5" fill="#6e7681"/>
+<path class="edge edge-added" d="M456,256 L439.67,256 C430.65,256 423.33,248.69 423.33,239.67 L423.33,203.17 C423.33,197.83 419.01,193.5 413.67,193.5 L404,193.5" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<circle class="port" cx="456" cy="256" r="2.5" fill="#3fb950"/>
+<path class="edge edge-added" d="M456,502 L453,502 C451.34,502 450,500.66 450,499 L450,226.5 C450,213.8 439.7,203.5 427,203.5 L404,203.5" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<circle class="port" cx="456" cy="502" r="2.5" fill="#3fb950"/>
+<path class="edge edge-added" d="M828,482 L851,482 C863.7,482 874,471.7 874,459 L874,224 C874,211.3 863.7,201 851,201 L828,201" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<circle class="port" cx="828" cy="482" r="2.5" fill="#3fb950"/>
+<path class="edge edge-added" d="M880,236 L862,236 C852.06,236 844,227.94 844,218 L844,199 C844,194.58 840.42,191 836,191 L828,191" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<circle class="port" cx="880" cy="236" r="2.5" fill="#3fb950"/>
+<path class="edge edge-removed" d="M880,216 L857,216 C844.3,216 834,205.7 834,193 L834,94 C834,75.22 818.78,60 800,60 L444,60 C425.22,60 410,75.22 410,94 L410,185.5 C410,187.16 408.66,188.5 407,188.5 L404,188.5" marker-end="url(#mk-removed)" fill="none" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.7"/>
+<circle class="port" cx="880" cy="216" r="2.5" fill="#f85149" opacity="0.7"/>
+<path class="edge edge-added" d="M880,462 L867,462 C859.82,462 854,456.18 854,449 L854,209 C854,201.82 848.18,196 841,196 L828,196" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<circle class="port" cx="880" cy="462" r="2.5" fill="#3fb950"/>
+<path class="edge edge-neutral context" d="M880,482 L872,482 C867.58,482 864,478.42 864,474 L864,204 C864,199.58 867.58,196 872,196 L880,196" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<circle class="port" cx="880" cy="482" r="2.5" fill="#6e7681"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="32" y="118" width="372" height="174" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="136" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/>
+<g><rect class="glyph-stroke" x="52" y="143" width="14" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,147 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M57,147 v8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="145" font-size="13" font-weight="600" fill="#e6edf3">User</text>
+<text class="nsub" x="82" y="163" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">users · 5 columns</text>
+<path class="rule" d="M32,180 h372" stroke="#3d444d" stroke-width="1"/>
+<rect class="chip" x="46" y="189" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="58" y="199" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">PK</text>
+<text class="colname" x="78" y="200" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">id</text>
+<text class="coltype" x="390" y="199.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">uuid</text>
+<text class="colname" x="78" y="220" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">email</text>
+<text class="coltype" x="390" y="219.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">citext</text>
+<text class="colname" x="78" y="240" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">name</text>
+<text class="coltype" x="390" y="239.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">text</text>
+<text class="colname strike" x="78" y="260" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#f85149" text-decoration="line-through">stripe_customer_id</text>
+<text class="coltype" x="390" y="259.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">text</text>
+<text class="colname" x="78" y="280" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">created_at</text>
+<text class="coltype" x="390" y="279.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">timestamptz</text>
+<g class="bdg bdg-neutral"><rect x="259.83" y="110" width="64.55" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="292.1" y="121" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">−1 column</text></g>
+<g class="bdg bdg-modified"><rect x="330.38" y="110" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="363.69" y="121" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="32" y="344" width="372" height="134" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="46" y="362" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/>
+<g><rect class="glyph-stroke" x="52" y="369" width="14" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,373 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M57,373 v8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="371" font-size="13" font-weight="600" fill="#e6edf3">Session</text>
+<text class="nsub" x="82" y="389" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">sessions · 3 columns</text>
+<path class="rule" d="M32,406 h372" stroke="#3d444d" stroke-width="1"/>
+<rect class="chip" x="46" y="415" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="58" y="425" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">PK</text>
+<text class="colname" x="78" y="426" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">id</text>
+<text class="coltype" x="390" y="425.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">uuid</text>
+<rect class="chip" x="46" y="435" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="58" y="445" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">FK</text>
+<text class="colname" x="78" y="446" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">user_id</text>
+<text class="coltype" x="390" y="445.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">uuid</text>
+<text class="colname" x="78" y="466" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">expires_at</text>
+<text class="coltype" x="390" y="465.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">timestamptz</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="456" y="118" width="372" height="214" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="470" y="136" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/>
+<g><rect class="glyph-stroke" x="476" y="143" width="14" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,147 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M481,147 v8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="145" font-size="13" font-weight="600" fill="#e6edf3">Organization</text>
+<text class="nsub" x="506" y="163" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">organizations · 7 columns</text>
+<path class="rule" d="M456,180 h372" stroke="#3d444d" stroke-width="1"/>
+<rect class="chip" x="470" y="189" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="482" y="199" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">PK</text>
+<text class="colname" x="502" y="200" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">id</text>
+<text class="coltype" x="814" y="199.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">uuid</text>
+<text class="colname" x="502" y="220" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">slug</text>
+<text class="coltype" x="814" y="219.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">citext</text>
+<text class="colname" x="502" y="240" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">name</text>
+<text class="coltype" x="814" y="239.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">text</text>
+<rect class="chip" x="470" y="249" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="482" y="259" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">FK</text>
+<text class="colname" x="502" y="260" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">owner_id</text>
+<text class="coltype" x="814" y="259.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">uuid</text>
+<text class="colname" x="502" y="280" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">plan</text>
+<text class="coltype" x="814" y="279.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">plan</text>
+<text class="colname" x="502" y="300" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">stripe_customer_id</text>
+<text class="coltype" x="814" y="299.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">text</text>
+<text class="colname" x="502" y="320" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">created_at</text>
+<text class="coltype" x="814" y="319.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">timestamptz</text>
+<g class="bdg bdg-added"><rect x="780.45" y="110" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="800.73" y="121" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="456" y="384" width="372" height="174" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="470" y="402" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/>
+<g><rect class="glyph-stroke" x="476" y="409" width="14" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,413 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M481,413 v8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="411" font-size="13" font-weight="600" fill="#e6edf3">Membership</text>
+<text class="nsub" x="506" y="429" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">memberships · 5 columns</text>
+<path class="rule" d="M456,446 h372" stroke="#3d444d" stroke-width="1"/>
+<rect class="chip" x="470" y="455" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="482" y="465" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">PK</text>
+<text class="colname" x="502" y="466" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">id</text>
+<text class="coltype" x="814" y="465.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">uuid</text>
+<rect class="chip" x="470" y="475" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="482" y="485" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">FK</text>
+<text class="colname" x="502" y="486" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">org_id</text>
+<text class="coltype" x="814" y="485.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">uuid</text>
+<rect class="chip" x="470" y="495" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="482" y="505" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">FK</text>
+<text class="colname" x="502" y="506" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">user_id</text>
+<text class="coltype" x="814" y="505.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">uuid</text>
+<text class="colname" x="502" y="526" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">role</text>
+<text class="coltype" x="814" y="525.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">member_role</text>
+<text class="colname" x="502" y="546" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">accepted_at</text>
+<text class="coltype" x="814" y="545.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">timestamptz</text>
+<g class="bdg bdg-added"><rect x="780.45" y="376" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="800.73" y="387" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="880" y="118" width="372" height="194" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="136" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/>
+<g><rect class="glyph-stroke" x="900" y="143" width="14" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900,147 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M905,147 v8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="145" font-size="13" font-weight="600" fill="#e6edf3">Subscription</text>
+<text class="nsub" x="930" y="163" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">subscriptions · 6 columns</text>
+<path class="rule" d="M880,180 h372" stroke="#3d444d" stroke-width="1"/>
+<rect class="chip" x="894" y="189" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="906" y="199" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">PK</text>
+<text class="colname" x="926" y="200" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">id</text>
+<text class="coltype" x="1238" y="199.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">uuid</text>
+<rect class="chip" x="894" y="209" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="906" y="219" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">FK</text>
+<text class="colname strike" x="926" y="220" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#f85149" text-decoration="line-through">user_id</text>
+<text class="coltype" x="1238" y="219.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">uuid</text>
+<rect class="chip" x="894" y="229" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="906" y="239" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">FK</text>
+<text class="colname" x="926" y="240" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">org_id</text>
+<text class="coltype" x="1238" y="239.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">uuid</text>
+<text class="colname" x="926" y="260" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">stripe_subscription_id</text>
+<text class="coltype" x="1238" y="259.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">text</text>
+<text class="colname" x="926" y="280" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">status</text>
+<text class="coltype" x="1238" y="279.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">sub_status</text>
+<text class="colname" x="926" y="300" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">current_period_end</text>
+<text class="coltype" x="1238" y="299.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">timestamptz</text>
+<g class="bdg bdg-neutral"><rect x="1106.23" y="110" width="66.15" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="1139.31" y="121" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">key moved</text></g>
+<g class="bdg bdg-modified"><rect x="1178.38" y="110" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1211.69" y="121" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="880" y="364" width="372" height="194" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="382" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/>
+<g><rect class="glyph-stroke" x="900" y="389" width="14" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900,393 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M905,393 v8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="391" font-size="13" font-weight="600" fill="#e6edf3">Invoice</text>
+<text class="nsub" x="930" y="409" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">invoices · 6 columns</text>
+<path class="rule" d="M880,426 h372" stroke="#3d444d" stroke-width="1"/>
+<rect class="chip" x="894" y="435" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="906" y="445" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">PK</text>
+<text class="colname" x="926" y="446" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">id</text>
+<text class="coltype" x="1238" y="445.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">uuid</text>
+<rect class="chip" x="894" y="455" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="906" y="465" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">FK</text>
+<text class="colname" x="926" y="466" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">org_id</text>
+<text class="coltype" x="1238" y="465.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#3fb950">uuid</text>
+<rect class="chip" x="894" y="475" width="24" height="14" rx="7" fill="rgba(110,118,129,.18)"/><text class="keytext" x="906" y="485" text-anchor="middle" font-size="8" font-weight="700" letter-spacing=".06em" fill="#9198a1">FK</text>
+<text class="colname" x="926" y="486" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">subscription_id</text>
+<text class="coltype" x="1238" y="485.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">uuid</text>
+<text class="colname" x="926" y="506" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">amount_cents</text>
+<text class="coltype" x="1238" y="505.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#d29922"><tspan fill="#9198a1" text-decoration="line-through">int</tspan><tspan> → bigint</tspan></text>
+<text class="colname" x="926" y="526" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">status</text>
+<text class="coltype" x="1238" y="525.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">invoice_status</text>
+<text class="colname" x="926" y="546" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#e6edf3">issued_at</text>
+<text class="coltype" x="1238" y="545.5" text-anchor="end" font-size="9.5" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace" fill="#9198a1">timestamptz</text>
+<g class="bdg bdg-neutral"><rect x="1107.97" y="356" width="64.41" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="1140.18" y="367" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">+1 column</text></g>
+<g class="bdg bdg-modified"><rect x="1178.38" y="356" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1211.69" y="367" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g></g>
+<g><g><rect class="lpill" x="555.79" y="52.5" width="132.42" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-removed" x="622" y="63.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#f85149">billed to the user until now</text></g></g>
+</svg>

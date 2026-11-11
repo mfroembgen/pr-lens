@@ -1,0 +1,237 @@
+import type { GraphDocInput } from "../graph.js";
+import { SCHEMA_VERSION } from "../version.js";
+
+/**
+ * The reference data-model document: billing moves from the person to the
+ * organization. Two tables arrive, a key leaves one table for another, a
+ * column is dropped, a type widens, and one relation that used to exist is
+ * drawn as the thing it used to mean. The data-model renderer golden is
+ * measured against this document, so it exercises every column and relation
+ * state, a lane skip, a same-lane relation, and a walkthrough step that
+ * stages the data-model view and cites a table, a column and a file.
+ */
+export const billingOrgGraphInput: GraphDocInput = {
+  schemaVersion: SCHEMA_VERSION,
+  kind: "graph",
+  generatedAt: "2026-10-24T09:12:00.000Z",
+  title: "Move subscriptions to organizations",
+  summary:
+    "Subscriptions and invoices used to hang off a person. They now hang off an organization, which arrives with a membership table, and the Stripe customer moves with them.",
+  lenses: ["architecture", "data-model"],
+  provenance: {
+    repo: { owner: "acme", name: "billing", host: "github.com" },
+    base: { sha: "9c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d", ref: "main" },
+    head: { sha: "4c19ae2b7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a", ref: "billing-by-org" },
+    pullRequest: {
+      number: 412,
+      title: "Move subscriptions to organizations",
+      url: "https://github.com/acme/billing/pull/412",
+    },
+    generator: { name: "pr-lens-examples", version: "0.1.0" },
+  },
+  lanes: [{ id: "api", label: "API", subtitle: "Node", order: 0 }],
+  nodes: [
+    {
+      id: "billing-service",
+      label: "Billing service",
+      kind: "service",
+      delta: "modified",
+      lane: "api",
+      summary: "Reads the subscription by organization instead of by user.",
+      files: [{ path: "src/billing/subscription.ts", startLine: 12, endLine: 80 }],
+    },
+    {
+      id: "org-service",
+      label: "Organization service",
+      kind: "service",
+      delta: "added",
+      lane: "api",
+      summary: "Creates organizations and memberships.",
+      files: [{ path: "src/org/service.ts" }],
+    },
+  ],
+  edges: [
+    {
+      id: "billing-reads-org",
+      from: "billing-service",
+      to: "org-service",
+      kind: "call",
+      delta: "added",
+      label: "resolve org",
+    },
+  ],
+  dataModel: {
+    stores: [
+      { id: "identity", label: "Identity", platform: "Postgres", order: 0 },
+      { id: "workspace", label: "Workspace", platform: "Postgres", order: 1, delta: "added" },
+      { id: "billing", label: "Billing", platform: "Postgres", order: 2 },
+    ],
+    tables: [
+      {
+        id: "user",
+        label: "User",
+        store: "identity",
+        name: "users",
+        delta: "modified",
+        badges: ["−1 column"],
+        summary: "Loses its Stripe customer; the organization carries it now.",
+        columns: [
+          { name: "id", type: "uuid", key: "primary", delta: "unchanged" },
+          { name: "email", type: "citext", delta: "unchanged" },
+          { name: "name", type: "text", delta: "unchanged" },
+          { name: "stripe_customer_id", type: "text", delta: "removed" },
+          { name: "created_at", type: "timestamptz", delta: "unchanged" },
+        ],
+        files: [
+          { path: "migrations/0042_billing_by_org.sql", startLine: 30, endLine: 34 },
+          { path: "prisma/schema.prisma", startLine: 12, endLine: 24 },
+        ],
+      },
+      {
+        id: "session",
+        label: "Session",
+        store: "identity",
+        name: "sessions",
+        delta: "unchanged",
+        columns: [
+          { name: "id", type: "uuid", key: "primary", delta: "unchanged" },
+          { name: "user_id", type: "uuid", key: "foreign", delta: "unchanged" },
+          { name: "expires_at", type: "timestamptz", delta: "unchanged" },
+        ],
+      },
+      {
+        id: "organization",
+        label: "Organization",
+        store: "workspace",
+        name: "organizations",
+        delta: "added",
+        summary: "The new owner of billing. Carries the Stripe customer the user used to.",
+        columns: [
+          { name: "id", type: "uuid", key: "primary", delta: "added" },
+          { name: "slug", type: "citext", delta: "added" },
+          { name: "name", type: "text", delta: "added" },
+          { name: "owner_id", type: "uuid", key: "foreign", delta: "added" },
+          { name: "plan", type: "plan", delta: "added" },
+          { name: "stripe_customer_id", type: "text", delta: "added" },
+          { name: "created_at", type: "timestamptz", delta: "added" },
+        ],
+        files: [
+          { path: "migrations/0042_billing_by_org.sql", startLine: 1, endLine: 14 },
+          { path: "prisma/schema.prisma", startLine: 40, endLine: 56 },
+        ],
+      },
+      {
+        id: "membership",
+        label: "Membership",
+        store: "workspace",
+        name: "memberships",
+        delta: "added",
+        columns: [
+          { name: "id", type: "uuid", key: "primary", delta: "added" },
+          { name: "org_id", type: "uuid", key: "foreign", delta: "added" },
+          { name: "user_id", type: "uuid", key: "foreign", delta: "added" },
+          { name: "role", type: "member_role", delta: "added" },
+          { name: "accepted_at", type: "timestamptz", delta: "added" },
+        ],
+        files: [
+          { path: "migrations/0042_billing_by_org.sql", startLine: 15, endLine: 28 },
+          { path: "prisma/schema.prisma", startLine: 58, endLine: 70 },
+        ],
+      },
+      {
+        id: "subscription",
+        label: "Subscription",
+        store: "billing",
+        name: "subscriptions",
+        delta: "modified",
+        badges: ["key moved"],
+        summary: "Who gets billed changes here. The row that paid was a person; it is now an organization.",
+        columns: [
+          { name: "id", type: "uuid", key: "primary", delta: "unchanged" },
+          { name: "user_id", type: "uuid", key: "foreign", delta: "removed" },
+          { name: "org_id", type: "uuid", key: "foreign", delta: "added" },
+          { name: "stripe_subscription_id", type: "text", delta: "unchanged" },
+          { name: "status", type: "sub_status", delta: "unchanged" },
+          { name: "current_period_end", type: "timestamptz", delta: "unchanged" },
+        ],
+        files: [
+          { path: "migrations/0042_billing_by_org.sql", startLine: 36, endLine: 48 },
+          { path: "prisma/schema.prisma", startLine: 88, endLine: 96 },
+        ],
+      },
+      {
+        id: "invoice",
+        label: "Invoice",
+        store: "billing",
+        name: "invoices",
+        delta: "modified",
+        badges: ["+1 column"],
+        summary: "Follows the subscription to the organization, and its amounts widen past 32 bits.",
+        columns: [
+          { name: "id", type: "uuid", key: "primary", delta: "unchanged" },
+          { name: "org_id", type: "uuid", key: "foreign", delta: "added" },
+          { name: "subscription_id", type: "uuid", key: "foreign", delta: "unchanged" },
+          { name: "amount_cents", type: "bigint", previousType: "int", delta: "modified" },
+          { name: "status", type: "invoice_status", delta: "unchanged" },
+          { name: "issued_at", type: "timestamptz", delta: "unchanged" },
+        ],
+        files: [{ path: "migrations/0042_billing_by_org.sql", startLine: 50, endLine: 58 }],
+      },
+    ],
+    relations: [
+      { id: "session-user", from: { table: "session", column: "user_id" }, to: { table: "user", column: "id" }, delta: "unchanged" },
+      { id: "org-owner", from: { table: "organization", column: "owner_id" }, to: { table: "user", column: "id" }, delta: "added" },
+      { id: "membership-user", from: { table: "membership", column: "user_id" }, to: { table: "user", column: "id" }, delta: "added" },
+      { id: "membership-org", from: { table: "membership", column: "org_id" }, to: { table: "organization", column: "id" }, delta: "added" },
+      { id: "subscription-org", from: { table: "subscription", column: "org_id" }, to: { table: "organization", column: "id" }, delta: "added" },
+      {
+        id: "subscription-user",
+        from: { table: "subscription", column: "user_id" },
+        to: { table: "user", column: "id" },
+        delta: "removed",
+        label: "billed to the user until now",
+      },
+      { id: "invoice-org", from: { table: "invoice", column: "org_id" }, to: { table: "organization", column: "id" }, delta: "added" },
+      { id: "invoice-subscription", from: { table: "invoice", column: "subscription_id" }, to: { table: "subscription", column: "id" }, delta: "unchanged" },
+    ],
+  },
+  stats: { filesChanged: 11, additions: 212, deletions: 64 },
+  views: [
+    { id: "architecture-overview", title: "Container view — Architecture", lens: "architecture" },
+    { id: "data-model", title: "Data model", lens: "data-model" },
+  ],
+  walkthrough: {
+    steps: [
+      {
+        id: "organizations-arrive",
+        heading: "Organizations arrive",
+        body: "Two new tables under workspace: the organization, and who belongs to it.",
+        stage: { kind: "view", view: "data-model" },
+        focus: { kind: "selection", tables: ["organization", "membership"] },
+      },
+      {
+        id: "billing-follows-the-org",
+        heading: "Billing follows the org",
+        body: "Subscriptions used to hang off a person. Now they hang off the org.",
+        stage: { kind: "view", view: "data-model" },
+        focus: { kind: "selection", tables: ["user", "organization", "subscription"] },
+        detail: {
+          text: "Subscription drops user_id and gains org_id, read in 0042_billing_by_org.sql.",
+          cites: [
+            { text: "Subscription", ref: { kind: "table", table: "subscription" } },
+            { text: "user_id", ref: { kind: "column", table: "subscription", column: "user_id" } },
+            { text: "org_id", ref: { kind: "column", table: "subscription", column: "org_id" } },
+            { text: "0042_billing_by_org.sql", ref: { kind: "file", path: "migrations/0042_billing_by_org.sql" } },
+          ],
+        },
+      },
+      {
+        id: "invoices-follow-too",
+        heading: "Invoices follow too",
+        body: "org_id is added, and amounts widen from int to bigint.",
+        stage: { kind: "view", view: "data-model" },
+        focus: { kind: "selection", tables: ["invoice", "organization"] },
+      },
+    ],
+  },
+};

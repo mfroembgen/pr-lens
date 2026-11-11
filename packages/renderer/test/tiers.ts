@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GraphDoc } from "@coldtea/pr-lens-schema";
 import { parseGraphDoc } from "@coldtea/pr-lens-schema";
-import { minimalGraph, postmarkRefactorGraph } from "@coldtea/pr-lens-schema/examples";
+import { billingOrgGraph, minimalGraph, postmarkRefactorGraph } from "@coldtea/pr-lens-schema/examples";
 import { denseGraph } from "./dense.js";
 
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -22,4 +22,5 @@ export const tiers: readonly { name: string; doc: GraphDoc }[] = [
   { name: "tier3-dense", doc: denseGraph },
   { name: "tier4-checkout", doc: fixture("tier4-checkout.json") },
   { name: "tier5-monorepo", doc: fixture("tier5-monorepo.json") },
+  { name: "billing-org", doc: billingOrgGraph },
 ];

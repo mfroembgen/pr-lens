@@ -67,12 +67,13 @@ export const badgeWidth = (text: string): number =>
  * (e.g. "new" on a node whose delta is "added") is dropped so the card
  * does not show it twice.
  */
-export const cardBadges = (node: GraphNode): string[] => {
-  const delta = deltaBadgeText(node.delta);
-  if (delta === undefined) return [...node.badges];
-  const own = node.badges.filter((text) => text.toLowerCase() !== delta.toLowerCase());
-  return [...own, delta];
+export const badgesFor = (own: readonly string[], delta: Delta): string[] => {
+  const text = deltaBadgeText(delta);
+  if (text === undefined) return [...own];
+  return [...own.filter((badge) => badge.toLowerCase() !== text.toLowerCase()), text];
 };
+
+export const cardBadges = (node: GraphNode): string[] => badgesFor(node.badges, node.delta);
 
 export type PlacedNode = {
   node: GraphNode;
@@ -95,11 +96,16 @@ export type PlacedLane = { lane: Lane; box: Box };
  * returned when the card carries no badge, and the strip counts as occupied
  * space so an edge label does not settle on top of it.
  */
-export const badgeRow = (placed: PlacedNode): { badges: string[]; box: Box } | undefined => {
-  const all = cardBadges(placed.node);
+export type BadgeRow = { badges: string[]; box: Box };
+
+export const badgeRow = (placed: PlacedNode): BadgeRow | undefined =>
+  badgeStrip(placed.box, cardBadges(placed.node));
+
+/** The strip above any card, from the badges it carries. */
+export const badgeStrip = (card: Box, all: readonly string[]): BadgeRow | undefined => {
   if (all.length === 0) return undefined;
 
-  const room = placed.box.width - CARD_PADDING_X;
+  const room = card.width - CARD_PADDING_X;
   const shown: string[] = [];
   let used = 0;
   for (const text of [...all].reverse()) {
@@ -110,12 +116,12 @@ export const badgeRow = (placed: PlacedNode): { badges: string[]; box: Box } | u
   }
   if (shown.length === 0) return undefined;
 
-  const right = placed.box.x + placed.box.width - CARD_PADDING_X / 2;
+  const right = card.x + card.width - CARD_PADDING_X / 2;
   return {
     badges: shown,
     box: {
       x: right - used,
-      y: placed.box.y - BADGE_RISE,
+      y: card.y - BADGE_RISE,
       width: used,
       height: BADGE_HEIGHT,
     },

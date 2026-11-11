@@ -1,6 +1,6 @@
 {
   "name": "@coldtea/pr-lens-cli",
-  "version": "0.13.3",
+  "version": "0.15.0",
   "description": "The PR Lens command line: turn a pull request diff into a schema-valid graph with your own model key, render it, and compose the comment.",
   "license": "MIT",
   "author": "Coldtea AI",
@@ -39,7 +39,7 @@
   },
   "scripts": {
     "prepublishOnly": "bun run build",
-    "build": "rm -rf dist && tsrs -p tsconfig.build.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsrs -p tsconfig.build.json",
     "typecheck": "tsrs -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -47,6 +47,7 @@
   "dependencies": {
     "@coldtea/pr-lens-renderer": "workspace:^",
     "@coldtea/pr-lens-schema": "workspace:^",
+    "transliteration": "2.7.0",
     "yaml": "^2.8.1",
     "zod": "^4.6.6"
   },

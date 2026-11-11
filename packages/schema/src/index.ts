@@ -27,10 +27,13 @@ export {
   SchemaVersionField,
   Sha,
   Summary,
+  TypeName,
 } from "./primitives.js";
 
 export {
   CiteRef,
+  ColumnKey,
+  DataModel,
   EdgeEmphasis,
   EdgeKind,
   Flow,
@@ -46,16 +49,22 @@ export {
   Payload,
   PayloadSide,
   Provenance,
+  Relation,
+  RelationEnd,
   StatChip,
   Stats,
   StepCite,
   StepDetail,
   StepFocus,
   StepStage,
+  Store,
+  Table,
+  TableColumn,
   View,
   ViewScope,
   Walkthrough,
   WalkthroughStep,
+  type DataModelInput,
   type GraphDocInput,
   type PayloadInput,
   type ViewInput,
@@ -84,7 +93,7 @@ export {
   type MarkdownDialect,
 } from "./provider.js";
 
-export { RenderAsset, RenderManifest, type RenderManifestInput } from "./manifest.js";
+export { RenderAsset, RenderManifest, WalkthroughAsset, type RenderManifestInput } from "./manifest.js";
 
 export {
   formatIssues,

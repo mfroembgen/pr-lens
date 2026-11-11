@@ -1,5 +1,6 @@
-import { flattenViews, render, type RenderAtlas, type Theme } from "@coldtea/pr-lens-renderer";
-import type { Flow, GraphDoc, Lens, View } from "@coldtea/pr-lens-schema";
+import { planTiles, render, renderFlow, type RenderAtlas, type Theme, type TilePlan } from "@coldtea/pr-lens-renderer";
+import type { GraphDoc, Lens, View } from "@coldtea/pr-lens-schema";
+import { tileIdForFlow, tileIdForView } from "@coldtea/pr-lens-renderer/walkthrough";
 
 /** A tile as the canvas API documents it. */
 export type Tile = {
@@ -20,53 +21,19 @@ export type DrawnTile = Tile & {
   atlas: RenderAtlas;
 };
 
-type Target = { id: string; title: string; lens: Lens; crumbs: string[]; draw: (theme: Theme) => ReturnType<typeof render> };
-
-const viewTargets = (doc: GraphDoc, views: readonly View[], parents: string[]): Target[] =>
+const viewCrumbs = (views: readonly View[], parents: string[]): [string, string[]][] =>
   views.flatMap((view) => {
     const crumbs = [...parents, view.id];
-    const own: Target[] = doc.lenses.includes(view.lens)
-      ? [{ id: `view:${view.id}`, title: view.title, lens: view.lens, crumbs, draw: (theme) => render(doc, { lens: view.lens, theme, view: view.id }) }]
-      : [];
-    return [...own, ...viewTargets(doc, view.children, crumbs)];
+    return [[tileIdForView(view.id), crumbs], ...viewCrumbs(view.children, crumbs)];
   });
 
-/** A flow drawn on its own: the document narrowed to that one flow, with the lens declared. */
-export const flowDocument = (doc: GraphDoc, flow: Flow): GraphDoc => ({
-  ...doc,
-  lenses: doc.lenses.includes("data-flow") ? doc.lenses : [...doc.lenses, "data-flow"],
-  flows: [flow],
-  views: [],
-  walkthrough: undefined,
-});
-
-const flowTargets = (doc: GraphDoc): Target[] =>
-  doc.flows.map((flow) => ({
-    id: `flow:${flow.id}`,
-    title: flow.title,
-    lens: "data-flow" as const,
-    crumbs: [flow.id],
-    draw: (theme) => render(flowDocument(doc, flow), { lens: "data-flow", theme }),
-  }));
-
-const targetsOf = (doc: GraphDoc): Target[] => {
-  const views = viewTargets(doc, doc.views, []);
-  const whole: Target[] =
-    views.length === 0 && doc.lenses.includes("architecture")
-      ? [{ id: "lens:architecture", title: doc.title, lens: "architecture", crumbs: [], draw: (theme) => render(doc, { lens: "architecture", theme }) }]
-      : [];
-  // A flow a data-flow view already draws gets no second picture of its own.
-  const drawnFlows = new Set(
-    flattenViews(doc.views)
-      .filter((view) => view.lens === "data-flow" && doc.lenses.includes("data-flow"))
-      .flatMap((view) => (view.scope.kind === "all" ? doc.flows.map((flow) => flow.id) : view.scope.flows)),
-  );
-  return [...whole, ...views, ...flowTargets(doc).filter((target) => !drawnFlows.has(target.id.slice("flow:".length)))];
-};
-
 /** Every picture the canvas shows, in order, the first one the hero. Throws the renderer's error when nothing draws. */
-export const drawTiles = (doc: GraphDoc, imageBase: string): DrawnTile[] =>
-  targetsOf(doc).map((target, index) => {
+export const drawTiles = (doc: GraphDoc, imageBase: string): DrawnTile[] => {
+  const crumbs = new Map([
+    ...viewCrumbs(doc.views, []),
+    ...doc.flows.map((flow): [string, string[]] => [tileIdForFlow(flow.id), [flow.id]]),
+  ]);
+  const draw = (target: TilePlan): DrawnTile => {
     const light = target.draw("light");
     const dark = target.draw("dark");
     const neutral = target.draw("neutral");
@@ -79,8 +46,8 @@ export const drawTiles = (doc: GraphDoc, imageBase: string): DrawnTile[] =>
       id: target.id,
       title: target.title,
       lens: target.lens,
-      crumbs: target.crumbs,
-      hero: index === 0,
+      crumbs: crumbs.get(target.id) ?? [],
+      hero: target.hero,
       width: light.width,
       height: light.height,
       renders: images,
@@ -88,14 +55,22 @@ export const drawTiles = (doc: GraphDoc, imageBase: string): DrawnTile[] =>
       svg: { light: light.svg, dark: dark.svg, neutral: neutral.svg },
       atlas: light.atlas,
     };
-  });
+  };
+  const tiles = planTiles(doc).map(draw);
+  const drawnFlows = new Set(tiles.flatMap((tile) => Object.keys(tile.atlas.messages)));
+  const flowDoc: GraphDoc = doc.lenses.includes("data-flow") ? doc : { ...doc, lenses: [...doc.lenses, "data-flow"] };
+  return [...tiles, ...doc.flows.filter((flow) => !drawnFlows.has(flow.id)).map((flow) => draw({
+    id: tileIdForFlow(flow.id), title: flow.title, lens: "data-flow", hero: false,
+    draw: (theme) => renderFlow(flowDoc, flow, theme),
+  }))];
+};
 
 /** The API's tile, without the pictures the page alone reads. */
 export const apiTile = ({ svg: _svg, atlas: _atlas, ...tile }: DrawnTile): Tile => tile;
 
 /** A fork's sketch, drawn as one picture. */
 export const drawSketch = (sketch: GraphDoc) => {
-  const lens: Lens = sketch.lenses.includes("architecture") ? "architecture" : "data-flow";
+  const lens: Lens = sketch.lenses.includes("architecture") ? "architecture" : sketch.lenses.includes("data-model") ? "data-model" : "data-flow";
   const light = render(sketch, { lens, theme: "light" });
   const dark = render(sketch, { lens, theme: "dark" });
   return { lens, width: light.width, height: light.height, svg: { light: light.svg, dark: dark.svg }, atlas: light.atlas };

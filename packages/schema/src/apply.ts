@@ -61,10 +61,16 @@ const pruneViews = (views: readonly View[], removed: RemovedIds): View[] =>
           nodes: view.scope.nodes.filter((id) => !removed.nodes.has(id)),
           edges: view.scope.edges.filter((id) => !removed.edges.has(id)),
           flows: view.scope.flows.filter((id) => !removed.flows.has(id)),
+          // A stored map never carries a data model, so a patch never removes a table.
+          tables: view.scope.tables,
         } as const;
 
         const selected =
-          scope.lanes.length + scope.nodes.length + scope.edges.length + scope.flows.length;
+          scope.lanes.length +
+          scope.nodes.length +
+          scope.edges.length +
+          scope.flows.length +
+          scope.tables.length;
         return selected === 0 ? [] : [{ ...view, scope, children }];
       }
       default:
@@ -311,6 +317,7 @@ export const applyPatch = (graph: GraphDoc, ops: readonly PatchOp[]): Parsed<Gra
     edges: working.edges,
     flows: working.flows,
     views,
+    dataModel: graph.dataModel,
   });
 
   return safeParseGraphDoc({

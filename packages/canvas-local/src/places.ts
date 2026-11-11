@@ -10,6 +10,7 @@ export const placesOf = (doc: GraphDoc) => {
   const flows = new Map(doc.flows.map((flow) => [flow.id, new Set(flow.messages.map((message) => message.id))]));
   return {
     components: new Set(doc.nodes.map((node) => node.id)),
+    tables: new Set(doc.dataModel?.tables.map((table) => table.id) ?? []),
     edges: new Set(doc.edges.map((edge) => edge.id)),
     lanes: new Set(doc.lanes.map((lane) => lane.id)),
     views: new Set(viewIds(doc.views)),
@@ -44,6 +45,7 @@ const focus = (places: Places, value: StepFocus, at: string): Unknown[] => {
   const missing = (field: string, ids: readonly string[], known: (id: string) => boolean, kind: string) =>
     ids.flatMap((id, index) => (known(id) ? [] : [{ at: `${at}.${field}[${index}]`, kind, id, detail: `is not a ${kind} on this canvas` }]));
   return [
+    ...missing("tables", value.tables, (id) => places.tables.has(id), "table"),
     ...missing("nodes", value.nodes, (id) => places.components.has(id), "component"),
     ...missing("edges", value.edges, (id) => places.edges.has(id), "edge"),
     ...missing("lanes", value.lanes, (id) => places.lanes.has(id), "lane"),

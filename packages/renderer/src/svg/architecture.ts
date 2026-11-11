@@ -1,5 +1,5 @@
 import { assertNever } from "@coldtea/pr-lens-schema";
-import type { GraphEdge, GraphNode, LayoutHints } from "@coldtea/pr-lens-schema";
+import type { Delta, GraphEdge, LayoutHints } from "@coldtea/pr-lens-schema";
 import { truncate } from "../text.js";
 import { glyphGroup } from "./icons.js";
 import type { Palette } from "../theme.js";
@@ -23,11 +23,11 @@ import {
 import {
   badgeRow,
   badgeWidth,
-  cardBadges,
   cardTextWidth,
   deltaBadgeText,
   laneHeaderText,
   occupiedBoxes,
+  type BadgeRow,
   type PlacedNode,
 } from "../layout/architecture.js";
 import {
@@ -47,23 +47,22 @@ import {
   SUBTITLE_SIZE,
 } from "../design.js";
 
-const badgeTone = (node: GraphNode, text: string): Tone =>
-  text === deltaBadgeText(node.delta) ? toneFor(node.delta) : "neutral";
+const badgeTone = (delta: Delta, text: string): Tone =>
+  text === deltaBadgeText(delta) ? toneFor(delta) : "neutral";
 
 /** The badge row, laid left to right across the strip the layout reserved. */
-const paintBadges = (placed: PlacedNode, palette: Palette): string => {
+export const paintBadgeStrip = (row: BadgeRow | undefined, delta: Delta, palette: Palette): string => {
   const styles = stylesFor(palette);
-  const row = badgeRow(placed);
   if (row === undefined) return "";
 
   let x = row.box.x;
   return lines(
     row.badges.map((text) => {
       const width = badgeWidth(text);
-      const colours = badgeColours(badgeTone(placed.node, text), palette);
+      const colours = badgeColours(badgeTone(delta, text), palette);
       const painted = wrap(
         "g",
-        { class: `bdg bdg-${badgeTone(placed.node, text)}` },
+        { class: `bdg bdg-${badgeTone(delta, text)}` },
         tag("rect", {
           x: coord(x),
           y: coord(row.box.y),
@@ -91,8 +90,8 @@ const paintBadges = (placed: PlacedNode, palette: Palette): string => {
   );
 };
 
-const cardOutlineClass = (node: GraphNode): string => {
-  switch (node.delta) {
+export const cardOutlineClass = (delta: Delta): string => {
+  switch (delta) {
     case "added":
       return "card card-added";
     case "modified":
@@ -101,7 +100,7 @@ const cardOutlineClass = (node: GraphNode): string => {
     case "unchanged":
       return "card";
     default:
-      return assertNever(node.delta, "Unhandled delta");
+      return assertNever(delta, "Unhandled delta");
   }
 };
 
@@ -159,7 +158,7 @@ export const paintCard = (placed: PlacedNode, palette: Palette): string => {
     { class: groupClass, ...cardGroupAttributes(node.delta, palette) },
     lines([
       tag("rect", {
-        class: cardOutlineClass(node),
+        class: cardOutlineClass(node.delta),
         x: coord(box.x),
         y: coord(box.y),
         width: coord(box.width),
@@ -170,7 +169,7 @@ export const paintCard = (placed: PlacedNode, palette: Palette): string => {
       chip,
       title,
       subtitle,
-      paintBadges(placed, palette),
+      paintBadgeStrip(badgeRow(placed), node.delta, palette),
     ]),
   );
 };

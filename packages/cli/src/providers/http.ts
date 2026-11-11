@@ -14,6 +14,8 @@ export const postJson = async (
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
+    // Refuse redirects so the key cannot be forwarded to another host.
+    redirect: "manual",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   }).catch((error: unknown) => {
     throw new PrLensCliError(

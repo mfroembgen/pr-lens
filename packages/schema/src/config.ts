@@ -60,7 +60,7 @@ export const Config = z
       .array(Lens)
       .min(1)
       .max(8)
-      .default(["architecture", "data-flow"])
+      .default(["architecture", "data-flow", "data-model"])
       .describe("Lenses to render for this repository."),
     map: MapCorrections.default({
       rename: [],
