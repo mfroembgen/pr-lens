@@ -1,0 +1,189 @@
+name: Self-hosted canvas
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish this branch after all checks pass
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - name: Check release versions
+        id: version
+        run: |
+          bun -e '
+            const {version} = await Bun.file("packages/cli/package.json").json();
+            const chart = Bun.YAML.parse(await Bun.file("charts/pr-lens/Chart.yaml").text());
+            const {image} = Bun.YAML.parse(await Bun.file("charts/pr-lens/values.yaml").text());
+            if (!/^\d+\.\d+\.\d+$/.test(version) || chart.version !== version ||
+                chart.appVersion !== version || image.repository !== "ghcr.io/mfroembgen/pr-lens" ||
+                image.tag !== `v${version}`) throw new Error("CLI, chart and image versions must match");
+            console.log(`version=${version}`);
+          ' >> "$GITHUB_OUTPUT"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run verify
+      - run: bun run --cwd packages/canvas-local playwright install --with-deps --no-shell chromium
+      - run: bun run test:browser
+      - run: helm lint --strict charts/pr-lens
+      - run: helm template canvas charts/pr-lens --set existingSecret=canvas-publish > /tmp/canvas.yaml
+      - name: Verify production image and persistent volume recovery
+        run: |
+          docker build --tag pr-lens:check .
+          python3 scripts/container-smoke.py pr-lens:check
+      - name: Build standalone CLIs
+        run: |
+          mkdir -p dist/cli
+          cp LICENSE dist/cli/LICENSE
+          printf '%s\n' "$GITHUB_SHA" > dist/cli/SOURCE_COMMIT
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/oven-sh/bun/bun-v1.4.3/LICENSE.md \
+            --output dist/cli/BUN_LICENSE.md
+          cat packages/cli/node_modules/zod/LICENSE packages/cli/node_modules/yaml/LICENSE \
+            packages/cli/node_modules/transliteration/LICENSE.txt \
+            > dist/cli/THIRD_PARTY_NOTICES
+          for platform in linux-x64 linux-arm64 macos-x64 macos-arm64; do
+            bun run compile:cli --target=bun-${platform/macos/darwin}
+            tar -czf dist/pr-lens-cli-${platform}.tar.gz -C dist/cli \
+              pr-lens LICENSE BUN_LICENSE.md THIRD_PARTY_NOTICES SOURCE_COMMIT
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cli-archives
+          path: dist/pr-lens-cli-*.tar.gz
+          if-no-files-found: error
+
+  cli:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+          - platform: macos-x64
+            runner: macos-15-intel
+          - platform: macos-arm64
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cli-archives
+          path: dist
+      - name: Verify extracted CLI without Bun or Node
+        run: bash scripts/cli-smoke.sh dist/pr-lens-cli-${{ matrix.platform }}.tar.gz
+
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref_type == 'branch' && github.repository == 'mfroembgen/pr-lens'
+    needs: [verify, cli]
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: pr-lens-release-${{ needs.verify.outputs.version }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - name: Verify upstream tag and release source
+        id: source
+        run: |
+          tag="v$VERSION"
+          git fetch --no-tags https://github.com/coldteadotai/pr-lens.git "refs/tags/$tag"
+          upstream_sha="$(git rev-parse 'FETCH_HEAD^{commit}')"
+          test "$(git rev-parse "$tag^{commit}")" = "$upstream_sha"
+          git merge-base --is-ancestor "$upstream_sha" "$GITHUB_SHA"
+          test "$upstream_sha" != "$GITHUB_SHA"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[].tag_name' > /tmp/release-tags
+          if grep -Fxq "$tag" /tmp/release-tags; then
+            echo "Release $tag already exists; inspect its provenance before retrying" >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cli-archives
+          path: dist/cli-assets
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Require unused image and chart versions
+        run: |
+          for ref in "ghcr.io/mfroembgen/pr-lens:v$VERSION" "ghcr.io/mfroembgen/charts/pr-lens:$VERSION"; do
+            if docker buildx imagetools inspect --raw "$ref" > /tmp/manifest.json 2> /tmp/manifest-error; then
+              echo "$ref already exists; inspect its provenance before retrying" >&2
+              exit 1
+            fi
+            if ! grep -Fq "$ref: not found" /tmp/manifest-error && ! grep -Fq 'manifest unknown' /tmp/manifest-error; then
+              cat /tmp/manifest-error >&2
+              exit 1
+            fi
+          done
+      - name: Publish image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/mfroembgen/pr-lens:v${{ env.VERSION }}
+          build-args: |
+            VERSION=v${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+          provenance: true
+          sbom: true
+      - name: Publish Helm chart
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | helm registry login ghcr.io --username "$GHCR_USER" --password-stdin
+          helm package charts/pr-lens --destination /tmp/charts
+          helm push "/tmp/charts/pr-lens-$VERSION.tgz" oci://ghcr.io/mfroembgen/charts
+      - name: Prepare release notes and checksums
+        env:
+          UPSTREAM_SHA: ${{ steps.source.outputs.upstream_sha }}
+        run: |
+          cd dist/cli-assets
+          sha256sum pr-lens-cli-*.tar.gz > SHA256SUMS
+          printf '%s\n' \
+            "Self-hosted canvas, Helm chart and standalone CLI binaries for macOS and Linux." \
+            "" \
+            "Upstream tag: v$VERSION" \
+            "Upstream commit: $UPSTREAM_SHA" \
+            "Patched source commit: $GITHUB_SHA" \
+            "Image: ghcr.io/mfroembgen/pr-lens:v$VERSION" \
+            "Helm chart: oci://ghcr.io/mfroembgen/charts/pr-lens, version $VERSION" \
+            "" \
+            "The Git tag points to the original upstream commit. These artifacts use the patched source commit recorded above and in each CLI archive's SOURCE_COMMIT file." \
+            > /tmp/release-notes.md
+          gh release create "v$VERSION" --verify-tag --draft \
+            --title "Self-hosted PR Lens v$VERSION" --notes-file /tmp/release-notes.md \
+            pr-lens-cli-*.tar.gz SHA256SUMS

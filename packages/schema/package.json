@@ -47,10 +47,10 @@
     "node": ">=20.11"
   },
   "scripts": {
-    "prepublishOnly": "pnpm run build",
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json && pnpm run schema:emit",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "schema:emit": "tsx scripts/emit-artifacts.ts",
+    "prepublishOnly": "bun run build",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsrs -p tsconfig.build.json && bun run schema:emit",
+    "typecheck": "tsrs -p tsconfig.json --noEmit",
+    "schema:emit": "bun scripts/emit-artifacts.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
